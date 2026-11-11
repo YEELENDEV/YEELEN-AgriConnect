@@ -1769,7 +1769,7 @@
       },
       "assistant": {
         "title": "Assistant IA",
-        "text": "Posez une question en langage simple sur votre exploitation (bénéfice du mois, stock d'aliments, parcelle à arroser, meilleur client, dépenses à venir) : la réponse est calculée à partir de vos vraies données, pas d'une intelligence artificielle externe."
+        "text": "Posez une question en langage simple sur votre exploitation (bénéfice du mois, stock d’aliments, parcelle à arroser, meilleur client, dépenses à venir) : la réponse est calculée à partir de vos données, pas d’une intelligence artificielle externe. Exception : tant qu’aucun capteur n’est branché, les parcelles à arroser reposent sur des valeurs simulées."
       },
       "previsionsRapports": {
         "title": "Prévisions & Rapports",
@@ -2040,8 +2040,8 @@
     "answerBenefice": "Votre bénéfice pour {{month}} est estimé à {{benefit}} ({{revenues}} de revenus, {{expenses}} de dépenses).",
     "answerStock_one": "Il reste {{count}} sac d'aliments en stock.",
     "answerStock_other": "Il reste {{count}} sacs d'aliments en stock.",
-    "answerNoWater": "Aucune parcelle ne nécessite un arrosage pour le moment.",
-    "answerWater": "Les parcelles à arroser sont : {{names}}.",
+    "answerNoWater": "D’après les valeurs simulées (aucun capteur n’est branché), aucune parcelle ne demanderait d’arrosage. Vérifiez sur le terrain.",
+    "answerWater": "D’après les valeurs simulées (aucun capteur n’est branché), les parcelles à arroser seraient : {{names}}. Vérifiez sur le terrain avant d’irriguer.",
     "answerBestClient": "{{name}} est le client qui a le plus dépensé avec {{total}}.",
     "answerNoClient": "Aucun client n'a encore d'historique d'achat enregistré.",
     "answerForecast": "Sur la base des dépenses du mois actuel, je prévois environ {{amount}} de dépenses pour le mois prochain.",
@@ -2059,7 +2059,7 @@
     "noteTitle": "Note de prévision",
     "pasAssezDeDonnees": "Pas encore assez d'historique pour projeter : aucune donnée sur les mois révolus. Les prévisions apparaîtront après un premier mois complet d'activité.",
     "noteSansParcelle": "Pour situer le contexte : les ventes enregistrées représentent {{clientSpend}} au total. Ce chiffre est indicatif, il n'entre pas dans le calcul ci-dessus.",
-    "note": "Pour situer le contexte : l'humidité moyenne des parcelles est de {{humidity}}% et les ventes enregistrées représentent {{clientSpend}} au total. Ces deux chiffres sont indicatifs, ils n'entrent pas dans le calcul ci-dessus."
+    "note": "Pour situer le contexte : l’humidité moyenne simulée des parcelles (aucun capteur n’est branché) est de {{humidity}}% et les ventes enregistrées représentent {{clientSpend}} au total. Ces deux chiffres sont indicatifs, ils n’entrent pas dans le calcul ci-dessus."
   },
   "reports": {
     "loading": "Préparation du rapport…",
@@ -2611,6 +2611,7 @@
   },
   "simulation": {
     "capteurs": "Valeurs simulées : aucun capteur n’est branché. Ne vous en servez pas pour prendre une décision.",
-    "capteursIrrigation": "Valeurs simulées : aucun capteur n’est branché, et le mode automatique ouvre la vanne d’après ces valeurs. Ne vous en servez pas pour décider d’irriguer."
+    "capteursIrrigation": "Valeurs simulées : aucun capteur n’est branché, et le mode automatique ouvre la vanne d’après ces valeurs. Ne vous en servez pas pour décider d’irriguer.",
+    "historiqueVannes": "Aucune vanne réelle n’est pilotée : ces ouvertures et fermetures viennent de la simulation (mode automatique) ou des boutons de cette page."
   }
 }

@@ -5392,6 +5392,9 @@ function CulturesModule({ farmId, highlightProduitId }) {
         <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: TEXT.md, marginBottom: SPACE.sm, display: 'flex', alignItems: 'center', gap: SPACE.sm }}>
           <ClipboardList size={16} color={COLORS.green} /> {t('cultures.valveHistory')}
         </div>
+        <div style={{ marginBottom: SPACE.sm }}>
+          <MentionSimulation texte={t('simulation.historiqueVannes')} />
+        </div>
         {historique.length === 0 ? (
           <div style={{ fontSize: TEXT.base, color: COLORS.inkSoft }}>{t('cultures.noEvent')}</div>
         ) : (

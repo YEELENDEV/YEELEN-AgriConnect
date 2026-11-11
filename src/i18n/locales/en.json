@@ -1769,7 +1769,7 @@
       },
       "assistant": {
         "title": "AI Assistant",
-        "text": "Ask a question in plain language about your farm (profit for the month, feed stock, plot to water, best customer, upcoming expenses): the answer is computed from your real data, not from an external AI."
+        "text": "Ask a question in plain language about your farm (profit for the month, feed stock, plot to water, best customer, upcoming expenses): the answer is computed from your data, not from an external AI. Exception: until a sensor is connected, plots to water rely on simulated values."
       },
       "previsionsRapports": {
         "title": "Forecasts & Reports",
@@ -2040,8 +2040,8 @@
     "answerBenefice": "Your profit for {{month}} is estimated at {{benefit}} ({{revenues}} in revenue, {{expenses}} in expenses).",
     "answerStock_one": "There is {{count}} bag of feed left in stock.",
     "answerStock_other": "There are {{count}} bags of feed left in stock.",
-    "answerNoWater": "No plot needs watering right now.",
-    "answerWater": "The plots to water are: {{names}}.",
+    "answerNoWater": "Based on simulated values (no sensor is connected), no plot would need watering. Check in the field.",
+    "answerWater": "Based on simulated values (no sensor is connected), the plots to water would be: {{names}}. Check in the field before irrigating.",
     "answerBestClient": "{{name}} is the customer who spent the most, with {{total}}.",
     "answerNoClient": "No customer has any purchase history recorded yet.",
     "answerForecast": "Based on this month's expenses, I forecast about {{amount}} in expenses for next month.",
@@ -2059,7 +2059,7 @@
     "noteTitle": "Forecast note",
     "pasAssezDeDonnees": "Not enough history to forecast yet: no data on completed months. Forecasts will appear after a first full month of activity.",
     "noteSansParcelle": "For context: recorded sales total {{clientSpend}}. This figure is indicative and does not feed the calculation above.",
-    "note": "For context: average plot humidity is {{humidity}}% and recorded sales total {{clientSpend}}. Both figures are indicative and do not feed the calculation above."
+    "note": "For context: simulated average plot humidity (no sensor is connected) is {{humidity}}% and recorded sales total {{clientSpend}}. Both figures are indicative and do not feed the calculation above."
   },
   "reports": {
     "loading": "Preparing report…",
@@ -2611,6 +2611,7 @@
   },
   "simulation": {
     "capteurs": "Simulated values: no sensor is connected. Do not base any decision on them.",
-    "capteursIrrigation": "Simulated values: no sensor is connected, and automatic mode opens the valve based on these values. Do not use them to decide when to irrigate."
+    "capteursIrrigation": "Simulated values: no sensor is connected, and automatic mode opens the valve based on these values. Do not use them to decide when to irrigate.",
+    "historiqueVannes": "No real valve is controlled: these openings and closings come from the simulation (automatic mode) or from the buttons on this page."
   }
 }
