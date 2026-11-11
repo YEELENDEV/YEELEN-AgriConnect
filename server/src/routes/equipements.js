@@ -4,7 +4,6 @@
 // avant tout accès à une intervention de maintenance).
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';
-import { requireRole } from '../middleware/requireRole.js';
 import { pool } from '../db.js';
 
 const router = express.Router();
@@ -46,7 +45,7 @@ router.get('/', authRequired, async (req, res) => {
   }
 });
 
-router.post('/', authRequired, requireRole('admin', 'directeur', 'gestionnaire'), async (req, res) => {
+router.post('/', authRequired, async (req, res) => {
   const { nom, categorie, etat, dateAcquisition, valeur, notes } = req.body;
   if (!nom) {
     return res.status(400).json({ error: 'Le nom de l’équipement est requis.' });
@@ -69,7 +68,7 @@ router.post('/', authRequired, requireRole('admin', 'directeur', 'gestionnaire')
 // s'il ne veut pas les effacer (incohérence mineure avec le reste du fichier, non corrigée
 // puisqu'aucun bug concret n'en découle : le formulaire d'édition frontend envoie toujours
 // tous les champs).
-router.put('/:id', authRequired, requireRole('admin', 'directeur', 'gestionnaire'), async (req, res) => {
+router.put('/:id', authRequired, async (req, res) => {
   const { nom, categorie, etat, dateAcquisition, valeur, notes } = req.body;
   try {
     const result = await pool.query(
@@ -94,7 +93,7 @@ router.put('/:id', authRequired, requireRole('admin', 'directeur', 'gestionnaire
   }
 });
 
-router.delete('/:id', authRequired, requireRole('admin', 'directeur', 'gestionnaire'), async (req, res) => {
+router.delete('/:id', authRequired, async (req, res) => {
   try {
     const owned = await findOwnedEquipement(req.params.id, req.user.entrepriseId);
     if (!owned) {
@@ -127,7 +126,7 @@ router.get('/:id/maintenance', authRequired, async (req, res) => {
   }
 });
 
-router.post('/:id/maintenance', authRequired, requireRole('admin', 'directeur', 'gestionnaire'), async (req, res) => {
+router.post('/:id/maintenance', authRequired, async (req, res) => {
   const { date, description, cout } = req.body;
   if (!description) {
     return res.status(400).json({ error: 'La description de l’intervention est requise.' });
@@ -153,7 +152,7 @@ router.post('/:id/maintenance', authRequired, requireRole('admin', 'directeur', 
 // cloisonnement par entreprise en une seule requête, plutôt qu'un appel séparé à
 // findOwnedEquipement suivi d'un DELETE (ici on ne connaît que l'id de la maintenance,
 // pas celui de l'équipement parent, donc il faut de toute façon remonter par la jointure).
-router.delete('/maintenance/:maintenanceId', authRequired, requireRole('admin', 'directeur', 'gestionnaire'), async (req, res) => {
+router.delete('/maintenance/:maintenanceId', authRequired, async (req, res) => {
   try {
     const result = await pool.query(
       `DELETE FROM equipements_maintenance m

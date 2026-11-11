@@ -1,9 +1,10 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import { authRequired } from '../middleware/auth.js';
-import { requireRole } from '../middleware/requireRole.js';
 import { pool } from '../db.js';
 import { sendWelcomeEmail } from '../services/mailer.js';
+import { validerMotDePasse, validerEmail, BCRYPT_COUT } from '../utils/motDePasse.js';
+import { invaliderCacheRoles } from '../utils/rolesService.js';
 import { logAuditEvent } from '../utils/auditLog.js';
 import { logFieldChanges, getJournal } from '../utils/journalModifications.js';
 import { calculerJoursOuvres, listerJoursOuvres } from '../utils/congesJours.js';
@@ -12,10 +13,9 @@ const router = express.Router();
 
 // L'application n'attribue plus de « niveau d'accès » : tout est ouvert par défaut, et seules les
 // restrictions posées par l'entreprise ferment quelque chose (voir permissions/catalogue.js et
-// utils/rolesService.js). La colonne texte `role` reste alimentée le temps que la couche
-// historique — le jeton, les 63 `requireRole`, les onglets du frontend — soit retirée à la
-// bascule ; on y met donc la valeur qui ne bloque rien, faute de quoi un nouveau compte serait
-// plus restreint que ne le demande son entreprise.
+// utils/rolesService.js). Les `requireRole` serveur ont été retirés le 2026-11-11 : la colonne
+// texte `role` ne décide plus rien côté serveur. Elle alimente encore le jeton et les onglets du
+// frontend (src/components/roles.js) ; on y met donc la valeur qui ne masque rien.
 const ROLE_TEXTE_NEUTRE = 'admin';
 
 const SALARIE_COLUMNS = `
@@ -32,7 +32,7 @@ const SALARIE_COLUMNS = `
   s.cout_horaire::float8 AS "coutHoraire", s.heures_hebdo::float8 AS "heuresHebdo",
   s.jours_travailles AS "joursTravailles",
   s.statut, s.created_at AS "createdAt",
-  u.email AS "compteEmail", eu.role,
+  u.email AS "compteEmail", eu.role_id AS "roleId", r.nom AS "roleNom",
   p.intitule AS "posteNom",
   d.nom AS "departementNom",
   (m.prenom || ' ' || m.nom) AS "managerNom"
@@ -42,6 +42,7 @@ const SALARIE_FROM = `
   FROM salaries s
   LEFT JOIN users u ON u.id = s.user_id
   LEFT JOIN entreprise_utilisateurs eu ON eu.user_id = s.user_id AND eu.entreprise_id = s.entreprise_id
+  LEFT JOIN roles r ON r.id = eu.role_id
   LEFT JOIN postes p ON p.id = s.poste_id
   LEFT JOIN departements d ON d.id = s.departement_id
   LEFT JOIN salaries m ON m.id = s.manager_id
@@ -52,9 +53,11 @@ async function fetchSalarie(id) {
   return r.rows[0] || null;
 }
 
-// Accès à la fiche d'UN salarié : admin de l'entreprise, OU le salarié lui-même
-// (compte lié), OU son manager direct. Renvoie la ligne brute {id,user_id,manager_id,
-// entreprise_id,jours_travailles} si autorisé, sinon null.
+// Fiche d'UN salarié de l'entreprise de l'appelant, ou null. Depuis le retrait de la couche
+// historique (2026-11-11), l'accès n'est plus filtré ici par le rôle texte : ce sont les
+// restrictions posées par l'entreprise (permissionGuard, ressources salaries/conges/presences/
+// avances/contrats/bulletins) qui décident, comme partout ailleurs. Ce helper ne garantit plus
+// que le cloisonnement par entreprise.
 async function resolveAccessibleSalarie(req, salarieId) {
   const r = await pool.query(
     `SELECT s.id, s.user_id, s.manager_id, s.entreprise_id, s.jours_travailles,
@@ -64,16 +67,23 @@ async function resolveAccessibleSalarie(req, salarieId) {
      WHERE s.id = $1 AND s.entreprise_id = $2`,
     [salarieId, req.user.entrepriseId]
   );
-  const row = r.rows[0];
-  if (!row) return null;
-  const isAdmin = req.user.role === 'admin';
-  const isSelf = row.user_id && row.user_id === req.user.sub;
-  const isManager = row.manager_user_id && row.manager_user_id === req.user.sub;
-  if (isAdmin || isSelf || isManager) return row;
-  return null;
+  return r.rows[0] || null;
 }
 
-function isAdmin(req) { return req.user.role === 'admin'; }
+// Vrai si la demande de congé concerne l'appelant lui-même, et qu'il n'en est ni le manager ni
+// le propriétaire de l'entreprise. Règle d'intégrité indépendante de toute restriction : on ne
+// décide pas de sa propre demande. (Avant, un rôle texte « admin » levait cette règle — or tous
+// les comptes créés depuis 2026-09-13 portent ce texte : chacun pouvait valider ses congés.)
+async function estSaPropreDemande(req, access) {
+  if (access.user_id !== req.user.sub) return false;
+  if (access.manager_user_id === req.user.sub) return false;
+  return !(await estProprietaire(req.user.entrepriseId, req.user.sub));
+}
+
+async function estProprietaire(entrepriseId, userId) {
+  const { rows } = await pool.query('SELECT 1 FROM entreprises WHERE id = $1 AND proprietaire_user_id = $2', [entrepriseId, userId]);
+  return rows.length > 0;
+}
 
 // ═══════════════════════════════════════════════════════════
 //  LISTE / DÉTAIL
@@ -118,7 +128,7 @@ router.get('/moi', authRequired, async (req, res) => {
 //  CRÉATION (fiche RH seule, OU fiche + compte de connexion)
 // ═══════════════════════════════════════════════════════════
 
-router.post('/', authRequired, requireRole('admin'), async (req, res) => {
+router.post('/', authRequired, async (req, res) => {
   const {
     nom, prenom, poste, posteId, departementId, managerId,
     dateEmbauche, salaire, presence,
@@ -134,6 +144,10 @@ router.post('/', authRequired, requireRole('admin'), async (req, res) => {
   if (createAccount && (!compteEmail || !password)) {
     return res.status(400).json({ error: 'Email de connexion et mot de passe requis pour créer un compte.' });
   }
+  if (createAccount) {
+    const erreur = validerEmail(compteEmail) || validerMotDePasse(password);
+    if (erreur) return res.status(400).json({ error: erreur });
+  }
 
   const client = await pool.connect();
   try {
@@ -147,7 +161,7 @@ router.post('/', authRequired, requireRole('admin'), async (req, res) => {
         await client.query('ROLLBACK');
         return res.status(409).json({ error: 'Un utilisateur avec cet email existe déjà.' });
       }
-      const passwordHash = await bcrypt.hash(password, 10);
+      const passwordHash = await bcrypt.hash(password, BCRYPT_COUT);
       const userResult = await client.query(
         `INSERT INTO users (email, role, password) VALUES ($1, $2, $3) RETURNING id`,
         [compteEmail.toLowerCase(), ROLE_TEXTE_NEUTRE, passwordHash]
@@ -228,7 +242,7 @@ router.post('/', authRequired, requireRole('admin'), async (req, res) => {
 
 const TRACKED_FIELDS = ['salaire', 'poste_id', 'departement_id', 'manager_id', 'statut', 'date_depart'];
 
-router.put('/:id', authRequired, requireRole('admin'), async (req, res) => {
+router.put('/:id', authRequired, async (req, res) => {
   const {
     nom, prenom, poste, posteId, departementId, managerId,
     dateEmbauche, salaire, presence, email, telephone, adresse,
@@ -260,12 +274,17 @@ router.put('/:id', authRequired, requireRole('admin'), async (req, res) => {
         await client.query('ROLLBACK');
         return res.status(400).json({ error: 'Email, mot de passe et rôle requis pour créer le compte.' });
       }
+      const erreurCompte = validerEmail(compteEmail) || validerMotDePasse(password);
+      if (erreurCompte) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: erreurCompte });
+      }
       const existing = await client.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1)', [compteEmail]);
       if (existing.rows.length > 0) {
         await client.query('ROLLBACK');
         return res.status(409).json({ error: 'Un utilisateur avec cet email existe déjà.' });
       }
-      const passwordHash = await bcrypt.hash(password, 10);
+      const passwordHash = await bcrypt.hash(password, BCRYPT_COUT);
       const ur = await client.query(
         `INSERT INTO users (email, role, password) VALUES ($1,$2,$3) RETURNING id`,
         [compteEmail.toLowerCase(), ROLE_TEXTE_NEUTRE, passwordHash]
@@ -342,6 +361,10 @@ router.put('/:id', authRequired, requireRole('admin'), async (req, res) => {
     // Synchro accès du compte lié quand `statut` bascule vers/depuis 'Inactif' (même logique que DELETE).
     if (userId && statut && statut !== before.statut) {
       if (statut === 'Inactif') {
+        if (await estProprietaire(req.user.entrepriseId, userId)) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ error: "Le compte propriétaire de l'entreprise ne peut pas être désactivé." });
+        }
         await client.query(`UPDATE entreprise_utilisateurs SET statut = 'Inactif' WHERE user_id = $1 AND entreprise_id = $2`, [userId, req.user.entrepriseId]);
         await logAuditEvent({ entrepriseId: req.user.entrepriseId, userId: req.user.sub, email: req.user.email, action: 'account_deactivated', req, details: { targetUserId: userId, via: 'PUT /salaries/:id' } });
       } else if (before.statut === 'Inactif') {
@@ -351,6 +374,9 @@ router.put('/:id', authRequired, requireRole('admin'), async (req, res) => {
     }
 
     await client.query('COMMIT');
+    // Le garde des permissions met en cache le statut du compte : sans invalidation, un compte
+    // désactivé garderait l'accès jusqu'à 60 s.
+    if (userId) invaliderCacheRoles(req.user.entrepriseId, userId);
 
     // Journal des modifications (hors transaction : best-effort, comme pour les devis).
     await logFieldChanges(req.user.entrepriseId, 'salarie', Number(req.params.id), req.user.sub, before, after, TRACKED_FIELDS);
@@ -369,7 +395,7 @@ router.put('/:id', authRequired, requireRole('admin'), async (req, res) => {
 //  SUPPRESSION (désactive le compte, ne le supprime pas)
 // ═══════════════════════════════════════════════════════════
 
-router.delete('/:id', authRequired, requireRole('admin'), async (req, res) => {
+router.delete('/:id', authRequired, async (req, res) => {
   try {
     const salarie = await pool.query(
       'SELECT user_id FROM salaries WHERE id = $1 AND entreprise_id = $2',
@@ -378,7 +404,13 @@ router.delete('/:id', authRequired, requireRole('admin'), async (req, res) => {
     if (salarie.rows.length === 0) return res.status(404).json({ error: 'Salarié introuvable.' });
 
     if (salarie.rows[0].user_id) {
+      // Garde-fou contre le verrouillage : le propriétaire ne peut pas être mis dehors, ni par un
+      // autre compte, ni par lui-même (même règle que pour les rôles, voir rolesService).
+      if (await estProprietaire(req.user.entrepriseId, salarie.rows[0].user_id)) {
+        return res.status(400).json({ error: "Le compte propriétaire de l'entreprise ne peut pas être désactivé." });
+      }
       await pool.query(`UPDATE entreprise_utilisateurs SET statut = 'Inactif' WHERE user_id = $1 AND entreprise_id = $2`, [salarie.rows[0].user_id, req.user.entrepriseId]);
+      invaliderCacheRoles(req.user.entrepriseId, salarie.rows[0].user_id);
       await logAuditEvent({ entrepriseId: req.user.entrepriseId, userId: req.user.sub, email: req.user.email, action: 'account_deactivated', req, details: { targetUserId: salarie.rows[0].user_id } });
     }
     await pool.query(`UPDATE salaries SET statut = 'Inactif' WHERE id = $1`, [req.params.id]);
@@ -427,7 +459,6 @@ router.post('/:id/presences', authRequired, async (req, res) => {
   const { date, statut, notes } = req.body;
   if (!date || !STATUTS_PRESENCE.includes(statut)) return res.status(400).json({ error: 'Date et statut valides requis.' });
   try {
-    if (!isAdmin(req)) return res.status(403).json({ error: 'Réservé à un administrateur.' });
     if (!(await resolveAccessibleSalarie(req, req.params.id))) return res.status(404).json({ error: 'Salarié introuvable.' });
     const result = await pool.query(
       `INSERT INTO salaries_presences (salarie_id, date, statut, notes)
@@ -549,7 +580,7 @@ router.put('/conges/:congeId', authRequired, async (req, res) => {
     const access = await resolveAccessibleSalarie(req, conge.salarie_id);
     if (!access) return res.status(403).json({ error: 'Non autorisé à décider de ce congé.' });
     // Un salarié ne valide pas ses propres congés.
-    if (!isAdmin(req) && access.user_id === req.user.sub && access.manager_user_id !== req.user.sub) {
+    if (await estSaPropreDemande(req, access)) {
       return res.status(403).json({ error: "Vous ne pouvez pas décider de votre propre demande." });
     }
 
@@ -584,8 +615,9 @@ router.delete('/conges/:congeId', authRequired, async (req, res) => {
     if (!conge) return res.status(404).json({ error: 'Demande de congé introuvable.' });
     const access = await resolveAccessibleSalarie(req, conge.salarie_id);
     if (!access) return res.status(404).json({ error: 'Demande de congé introuvable.' });
-    // Le salarié ne peut supprimer que sa propre demande encore 'Demandé' ; l'admin/manager tout.
-    if (!isAdmin(req) && access.manager_user_id !== req.user.sub && conge.statut !== 'Demandé') {
+    // Sa propre demande ne s'annule que tant qu'elle est 'Demandé' (sinon on effacerait une
+    // décision prise par un autre) ; manager et propriétaire peuvent tout retirer.
+    if (conge.statut !== 'Demandé' && await estSaPropreDemande(req, access)) {
       return res.status(403).json({ error: 'Seule une demande encore en attente peut être annulée.' });
     }
     if (STATUTS_APRES_APPROBATION.includes(conge.statut)) {
@@ -643,7 +675,7 @@ router.get('/:id/conges-droits', authRequired, async (req, res) => {
   }
 });
 
-router.post('/:id/conges-droits', authRequired, requireRole('admin'), async (req, res) => {
+router.post('/:id/conges-droits', authRequired, async (req, res) => {
   const { typeId, annee, joursAlloues } = req.body;
   if (!typeId || !annee) return res.status(400).json({ error: 'Type et année requis.' });
   try {
@@ -664,7 +696,7 @@ router.post('/:id/conges-droits', authRequired, requireRole('admin'), async (req
   }
 });
 
-router.delete('/conges-droits/:droitId', authRequired, requireRole('admin'), async (req, res) => {
+router.delete('/conges-droits/:droitId', authRequired, async (req, res) => {
   try {
     const { rowCount } = await pool.query(
       `DELETE FROM conges_droits cd USING salaries s
@@ -698,7 +730,7 @@ router.get('/:id/avances', authRequired, async (req, res) => {
   }
 });
 
-router.post('/:id/avances', authRequired, requireRole('admin'), async (req, res) => {
+router.post('/:id/avances', authRequired, async (req, res) => {
   const { date, montant, motif } = req.body;
   if (!montant) return res.status(400).json({ error: 'Montant requis.' });
   try {
@@ -715,7 +747,7 @@ router.post('/:id/avances', authRequired, requireRole('admin'), async (req, res)
   }
 });
 
-router.delete('/avances/:avanceId', authRequired, requireRole('admin'), async (req, res) => {
+router.delete('/avances/:avanceId', authRequired, async (req, res) => {
   try {
     const result = await pool.query(
       `DELETE FROM salaries_avances a USING salaries s
@@ -753,7 +785,7 @@ router.get('/:id/contrats', authRequired, async (req, res) => {
 });
 
 // Nouveau contrat => désactive les précédents, devient l'actif, resynchronise salaries.salaire.
-router.post('/:id/contrats', authRequired, requireRole('admin'), async (req, res) => {
+router.post('/:id/contrats', authRequired, async (req, res) => {
   const { type = 'CDI', dateDebut, dateFin, finPeriodeEssai, salaire } = req.body;
   const client = await pool.connect();
   try {
@@ -783,7 +815,7 @@ router.post('/:id/contrats', authRequired, requireRole('admin'), async (req, res
   }
 });
 
-router.put('/contrats/:contratId', authRequired, requireRole('admin'), async (req, res) => {
+router.put('/contrats/:contratId', authRequired, async (req, res) => {
   const { type, dateDebut, dateFin, finPeriodeEssai, salaire, actif } = req.body;
   const client = await pool.connect();
   try {
@@ -826,7 +858,7 @@ router.put('/contrats/:contratId', authRequired, requireRole('admin'), async (re
   }
 });
 
-router.delete('/contrats/:contratId', authRequired, requireRole('admin'), async (req, res) => {
+router.delete('/contrats/:contratId', authRequired, async (req, res) => {
   try {
     const { rowCount } = await pool.query(
       `DELETE FROM salaries_contrats c USING salaries s
@@ -870,7 +902,7 @@ router.get('/:id/temps', authRequired, async (req, res) => {
   }
 });
 
-router.post('/:id/temps', authRequired, requireRole('admin'), async (req, res) => {
+router.post('/:id/temps', authRequired, async (req, res) => {
   const { date, heures, parcelleId, poulaillerId, tache } = req.body;
   if (!date || !heures) return res.status(400).json({ error: 'Date et heures requises.' });
   try {
@@ -898,7 +930,7 @@ router.post('/:id/temps', authRequired, requireRole('admin'), async (req, res) =
   }
 });
 
-router.delete('/temps/:tempsId', authRequired, requireRole('admin'), async (req, res) => {
+router.delete('/temps/:tempsId', authRequired, async (req, res) => {
   try {
     const { rowCount } = await pool.query(
       `DELETE FROM salaries_temps t USING salaries s

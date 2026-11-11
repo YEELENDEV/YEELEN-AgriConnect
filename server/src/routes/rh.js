@@ -4,7 +4,6 @@
 // CRUD que produit_categories / contact_tags / listes_prix.
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';
-import { requireRole } from '../middleware/requireRole.js';
 import { pool } from '../db.js';
 
 const router = express.Router();
@@ -29,7 +28,7 @@ router.get('/departements', authRequired, async (req, res) => {
   }
 });
 
-router.post('/departements', authRequired, requireRole('admin'), async (req, res) => {
+router.post('/departements', authRequired, async (req, res) => {
   const { nom, responsableId } = req.body;
   if (!nom || !nom.trim()) return res.status(400).json({ error: 'Nom requis.' });
   try {
@@ -47,7 +46,7 @@ router.post('/departements', authRequired, requireRole('admin'), async (req, res
   }
 });
 
-router.put('/departements/:id', authRequired, requireRole('admin'), async (req, res) => {
+router.put('/departements/:id', authRequired, async (req, res) => {
   const { nom, responsableId } = req.body;
   try {
     const { rows } = await pool.query(
@@ -65,7 +64,7 @@ router.put('/departements/:id', authRequired, requireRole('admin'), async (req, 
   }
 });
 
-router.delete('/departements/:id', authRequired, requireRole('admin'), async (req, res) => {
+router.delete('/departements/:id', authRequired, async (req, res) => {
   try {
     const { rowCount } = await pool.query(
       'DELETE FROM departements WHERE id = $1 AND entreprise_id = $2',
@@ -98,7 +97,7 @@ router.get('/postes', authRequired, async (req, res) => {
   }
 });
 
-router.post('/postes', authRequired, requireRole('admin'), async (req, res) => {
+router.post('/postes', authRequired, async (req, res) => {
   const { intitule, departementId } = req.body;
   if (!intitule || !intitule.trim()) return res.status(400).json({ error: 'Intitulé requis.' });
   try {
@@ -116,7 +115,7 @@ router.post('/postes', authRequired, requireRole('admin'), async (req, res) => {
   }
 });
 
-router.put('/postes/:id', authRequired, requireRole('admin'), async (req, res) => {
+router.put('/postes/:id', authRequired, async (req, res) => {
   const { intitule, departementId } = req.body;
   try {
     const { rows } = await pool.query(
@@ -134,7 +133,7 @@ router.put('/postes/:id', authRequired, requireRole('admin'), async (req, res) =
   }
 });
 
-router.delete('/postes/:id', authRequired, requireRole('admin'), async (req, res) => {
+router.delete('/postes/:id', authRequired, async (req, res) => {
   try {
     const { rowCount } = await pool.query(
       'DELETE FROM postes WHERE id = $1 AND entreprise_id = $2',
@@ -162,7 +161,7 @@ router.get('/jours-feries', authRequired, async (req, res) => {
   }
 });
 
-router.post('/jours-feries', authRequired, requireRole('admin'), async (req, res) => {
+router.post('/jours-feries', authRequired, async (req, res) => {
   const { date, nom } = req.body;
   if (!date) return res.status(400).json({ error: 'Date requise.' });
   try {
@@ -180,7 +179,7 @@ router.post('/jours-feries', authRequired, requireRole('admin'), async (req, res
   }
 });
 
-router.delete('/jours-feries/:id', authRequired, requireRole('admin'), async (req, res) => {
+router.delete('/jours-feries/:id', authRequired, async (req, res) => {
   try {
     const { rowCount } = await pool.query(
       'DELETE FROM jours_feries WHERE id = $1 AND entreprise_id = $2',
@@ -209,7 +208,7 @@ router.get('/conges-types', authRequired, async (req, res) => {
   }
 });
 
-router.post('/conges-types', authRequired, requireRole('admin'), async (req, res) => {
+router.post('/conges-types', authRequired, async (req, res) => {
   const { nom, paye = true, justificatifRequis = false, couleur, ordre = 0 } = req.body;
   if (!nom || !nom.trim()) return res.status(400).json({ error: 'Nom requis.' });
   try {
@@ -227,7 +226,7 @@ router.post('/conges-types', authRequired, requireRole('admin'), async (req, res
   }
 });
 
-router.put('/conges-types/:id', authRequired, requireRole('admin'), async (req, res) => {
+router.put('/conges-types/:id', authRequired, async (req, res) => {
   const { nom, paye, justificatifRequis, couleur, ordre } = req.body;
   try {
     const { rows } = await pool.query(
@@ -257,7 +256,7 @@ router.put('/conges-types/:id', authRequired, requireRole('admin'), async (req, 
   }
 });
 
-router.delete('/conges-types/:id', authRequired, requireRole('admin'), async (req, res) => {
+router.delete('/conges-types/:id', authRequired, async (req, res) => {
   try {
     const used = await pool.query(
       `SELECT

@@ -4,6 +4,12 @@ services:
 
   backend:
     ports: !reset []
+    environment:
+      # Active les contrôles de production du backend : refus de démarrer si JWT_SECRET est
+      # absent ou trop court (< 32 caractères), CORS limité au domaine public.
+      NODE_ENV: production
+      # Lien public des devis envoyés par email/WhatsApp (sinon http://localhost:8090).
+      FRONTEND_URL: https://${DOMAIN}
 
   frontend:
     ports: !reset []

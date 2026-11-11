@@ -1,7 +1,7 @@
 // Étape 1 de l'alignement Odoo produit/stock (2026-09-03) : référentiel d'unités de mesure
 // (unites_mesure_categories / unites_mesure) + conversion de facteur dans stockSync.js quand
 // une ligne d'achat/devis porte un uom_id différent de l'unité de base du produit.
-import { app, pool, request, registerEntreprise, createEmployeeLogin, createClient, createProduit } from './helpers.js';
+import { app, pool, request, registerEntreprise, createEmployeeLogin, createClient, createProduit, restreindreEcritures } from './helpers.js';
 
 afterAll(async () => { await pool.end(); });
 
@@ -99,6 +99,7 @@ describe('Référentiel unités de mesure', () => {
 
   test('écritures réservées admin/directeur — un ouvrier reçoit 403 sur POST/PUT/DELETE mais garde le GET', async () => {
     const ouvrier = await createEmployeeLogin(admin.token, 'ouvrier');
+    await restreindreEcritures(admin.entrepriseId, ouvrier.email, ['referentiels_produits']);
     expect((await request(app).get('/api/unites-mesure').set(bearer(ouvrier.token))).status).toBe(200);
     expect((await request(app).post('/api/unites-mesure-categories').set(bearer(ouvrier.token)).send({ nom: 'X' })).status).toBe(403);
 

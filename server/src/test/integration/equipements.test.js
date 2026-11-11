@@ -1,4 +1,4 @@
-import { app, pool, request, registerEntreprise, createEmployeeLogin } from './helpers.js';
+import { app, pool, request, registerEntreprise, createEmployeeLogin, restreindreEcritures } from './helpers.js';
 
 afterAll(async () => { await pool.end(); });
 
@@ -32,6 +32,7 @@ describe('Équipements — CRUD + rôles', () => {
 
   test('rôles : ouvrier → 403 ; gestionnaire (autorisé) → 201', async () => {
     const ouvrier = await createEmployeeLogin(admin.token, 'ouvrier');
+    await restreindreEcritures(admin.entrepriseId, ouvrier.email, ['equipements']);
     const gestionnaire = await createEmployeeLogin(admin.token, 'gestionnaire');
     const id = await creerEquipement(admin.token);
 

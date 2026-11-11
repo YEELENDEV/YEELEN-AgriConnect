@@ -6,6 +6,7 @@
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';
 import { pool } from '../db.js';
+import { DELAI_API_EXTERNE_MS } from '../config/env.js';
 
 const router = express.Router();
 
@@ -32,7 +33,7 @@ router.get('/villes', authRequired, async (req, res) => {
     return res.status(400).json({ error: 'Recherche trop courte (2 caractères minimum).' });
   }
   try {
-    const response = await fetch(`${GEOCODING_URL}?name=${encodeURIComponent(q)}&count=5&language=fr`);
+    const response = await fetch(`${GEOCODING_URL}?name=${encodeURIComponent(q)}&count=5&language=fr`, { signal: AbortSignal.timeout(DELAI_API_EXTERNE_MS) });
     if (!response.ok) throw new Error(`geocoding-api a répondu ${response.status}`);
     const data = await response.json();
     const villes = (data.results || []).map((r) => ({
@@ -138,7 +139,7 @@ router.get('/', authRequired, async (req, res) => {
     const url = `${FORECAST_URL}?latitude=${localisation.latitude}&longitude=${localisation.longitude}` +
       `&current=${CURRENT_PARAMS}&daily=${DAILY_PARAMS}&hourly=${HOURLY_PARAMS}` +
       `&forecast_days=14&timezone=auto`;
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: AbortSignal.timeout(DELAI_API_EXTERNE_MS) });
     if (!response.ok) throw new Error(`Open-Meteo a répondu ${response.status}`);
     const data = await response.json();
 

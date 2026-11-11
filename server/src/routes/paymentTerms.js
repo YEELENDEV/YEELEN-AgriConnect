@@ -6,12 +6,11 @@
 // /api/business/finances et /api/banques).
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';
-import { requireRole } from '../middleware/requireRole.js';
 import { pool } from '../db.js';
 
 const router = express.Router();
 
-const ecriture = [authRequired, requireRole('admin', 'directeur')];
+const ecriture = [authRequired];
 
 const LINE_COLUMNS = `
   id, value, value_amount::float8 AS "valueAmount", delay_type AS "delayType",

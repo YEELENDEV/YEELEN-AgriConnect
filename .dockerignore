@@ -2,3 +2,17 @@ node_modules
 dist
 .git
 server
+
+# Secrets et données : le build du frontend fait `COPY . .` — sans ces lignes, le .env racine
+# (DB_PASSWORD, EMAIL_PASS…) et les dumps de la base de production finissaient dans les
+# couches de l'image de build.
+.env
+.env.*
+!.env.example
+backups
+*.dump
+CLAUDE.md.bak
+.claude
+.vscode
+.github
+docs

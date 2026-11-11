@@ -1,3 +1,8 @@
 node_modules
 .env
+.env.*
+!.env.example
 data
+# Tests : inutiles à l'exécution, ils n'ont rien à faire dans l'image de production.
+src/test
+jest.integration.config.cjs

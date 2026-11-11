@@ -1,4 +1,21 @@
 {$DOMAIN} {
+    # En-têtes de sécurité pour tout le site (frontend + API).
+    header {
+        # HTTPS imposé au navigateur pendant 1 an (Caddy gère déjà la redirection HTTP→HTTPS).
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        # Caméra/micro/géolocalisation non utilisés par l'application.
+        Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()"
+        # CSP minimale qui ne restreint ni scripts, ni styles, ni images (reCAPTCHA, tuiles de
+        # carte et flux de caméras viennent de domaines tiers variables) : interdit l'intégration
+        # dans un cadre tiers, les plugins et la réécriture de <base>. À durcir après tests.
+        Content-Security-Policy "frame-ancestors 'none'; object-src 'none'; base-uri 'self'"
+        # Ne pas annoncer le serveur.
+        -Server
+    }
+
     handle /api/* {
         reverse_proxy backend:4000
     }

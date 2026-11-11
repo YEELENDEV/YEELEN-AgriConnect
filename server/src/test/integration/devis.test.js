@@ -1,4 +1,4 @@
-import { app, pool, request, registerEntreprise, createClient, createEmployeeLogin, createProduit } from './helpers.js';
+import { app, pool, request, registerEntreprise, createClient, createEmployeeLogin, createProduit, restreindreEcritures } from './helpers.js';
 
 afterAll(async () => { await pool.end(); });
 
@@ -126,6 +126,7 @@ describe('Devis — cycle de vie complet + journal d\'audit', () => {
     const devisId = create.body.devis.id;
 
     const ouvrier = await createEmployeeLogin(admin.token, 'ouvrier');
+    await restreindreEcritures(admin.entrepriseId, ouvrier.email, ['devis']);
 
     const res = await request(app)
       .post(`/api/devis/${devisId}/valider-manuel`)
@@ -571,6 +572,27 @@ describe('Devis — consultation et signature publiques (token)', () => {
     expect(resigner.status).toBe(400);
   });
 
+  test('POST /public/:token/signer refuse un devis annulé (lien toujours valide) et une signature non-image', async () => {
+    const admin = await registerEntreprise();
+    const clientId = await createClient(admin.token);
+    const create = await request(app).post('/api/devis').set(bearer(admin.token))
+      .send({ clientId, lignes: [{ produit: 'Sorgho', quantite: 1, prixUnitaire: 100, type: 'produit' }] });
+    const devisId = create.body.devis.id;
+    const token = await posesToken(devisId);
+
+    const pasImage = await request(app).post(`/api/devis/public/${token}/signer`)
+      .send({ signatureData: 'javascript:alert(1)', signataireNom: 'Test' });
+    expect(pasImage.status).toBe(400);
+
+    const annuler = await request(app).post(`/api/devis/${devisId}/annuler`).set(bearer(admin.token));
+    expect(annuler.status).toBe(200);
+    const signer = await request(app).post(`/api/devis/public/${token}/signer`)
+      .send({ signatureData: 'data:image/png;base64,abc', signataireNom: 'Test' });
+    expect(signer.status).toBe(400);
+    const relire = await request(app).get(`/api/devis/public/${token}`);
+    expect(relire.body.devis.statut).toBe('Annulé');
+  });
+
   test('GET /public/:token/pdf → 200 + PDF, y compris avant signature ; token bidon → 404', async () => {
     const admin = await registerEntreprise();
     const clientId = await createClient(admin.token);
@@ -705,6 +727,15 @@ describe('Devis — multi-devise réel (étape 2)', () => {
   // paramètre supplémentaire) diffère de celui figé à la facturation → écart de change posté
   // et lettré séparément, la facture reste soldée normalement (en devise du document).
   describe('écart de change au paiement', () => {
+    // Les taux posés ci-dessous (2026-09-20/21) restaient en base après ce bloc. Tant que ces
+    // dates étaient dans le futur, c'était sans effet ; une fois passées, ils devenaient « le
+    // taux le plus récent » pour tous les tests suivants (obtenirTaux prend la dernière date
+    // ≤ aujourd'hui sans rafraîchir) et faisaient échouer devisesTaux.test.js et le test
+    // d'envoi multi-devise. Nettoyage explicite : la table est partagée par toute la suite.
+    afterAll(async () => {
+      await pool.query(`DELETE FROM currency_rates WHERE date IN ('2026-09-20', '2026-09-21')`);
+    });
+
     async function creerFactureEchelonneeEUR(admin) {
       const contact = await request(app).post('/api/contacts').set(bearer(admin.token))
         .send({ nom: 'Client Ecart Change', estClient: true, deviseFacturation: 'EUR' });

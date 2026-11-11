@@ -5,6 +5,100 @@ Extrait de `CLAUDE.md` le 2026-08-28 pour alléger le contexte chargé à chaque
 
 ---
 
+### Audit sécurité + bascule des restrictions en refus réel (étape 3b) — 2026-11-11
+
+Demande de l'utilisateur : revoir tout le code, retirer l'inutile et le redondant, « sécuriser au
+maximum ». Le détail des correctifs de l'audit (secret JWT par défaut chargé hors Docker, XSS des
+fenêtres d'impression, re-signature d'un devis facturé, secrets copiés dans l'image Docker, force
+brute, MFA, CORS, en-têtes, délais réseau…) est résumé dans `CLAUDE.md`, section « Security
+conventions ». Puis, sur accord explicite (« Oui, fais-le ici »), la **bascule en refus** :
+
+- **`permissionGuard` refuse** désormais (403 `{error, reason:'restriction', ressource, action}`,
+  message lisible tiré du catalogue) toute action que le rôle de l'utilisateur s'est vu retirer.
+  Journal `permission_refusee` (une ligne par rôle × permission et par process). Modèle inchangé :
+  tout ouvert par défaut, le propriétaire n'est jamais restreint, une route hors carte est permise.
+  Interrupteur de repli d'urgence : `PERMISSIONS_MODE=observation`.
+- **Comptes désactivés** : la résolution des restrictions lit maintenant
+  `entreprise_utilisateurs.statut`. Avant, un salarié désactivé gardait un accès complet avec son
+  jeton déjà émis (valide 7 jours). Désormais 401 `compte_desactive` sur toute route authentifiée
+  (sauf les routes publiques d'authentification), cache invalidé immédiatement par
+  `DELETE`/`PUT /salaries/:id`. Le propriétaire ne peut plus être désactivé (400).
+- **Fail closed** : restrictions illisibles (base indisponible) → 503, et l'erreur n'est plus
+  mise en cache 60 s. Le repli « tout ouvert si la base est muette » — que l'étape 3a disait déjà
+  devoir disparaître à la bascule — est retiré.
+- **Recherche globale** (`GET /api/recherche`) : chaque groupe (contacts/produits/devis) est filtré
+  selon le droit « lire » de sa ressource ; elle contournait les restrictions. Jokers `%`/`_`
+  échappés, requête bornée à 100 caractères.
+
+**Délibérément NON fait — décision laissée à l'utilisateur** : le retrait des 63 `requireRole`.
+Ils ne restreignent plus les comptes créés depuis le 2026-09-13 (rôle texte neutre `admin`), mais
+bloquent encore les comptes plus anciens (en base de dev : 2 comptes « comptable » actifs, sans
+rôle d'entreprise). Les retirer leur ouvrirait d'un coup les routes d'administration ; c'est
+cohérent avec « tout ouvert par défaut » mais c'est une ouverture de droits, à décider
+explicitement. **Toujours vrai et à garder en tête** : un salarié créé sans rôle d'entreprise a
+tous les droits (choix produit « page blanche ») ; le propriétaire doit lui affecter un rôle pour
+le restreindre.
+
+**Retrait des 62 `requireRole` (même jour, sur décision explicite : « Oui, retire-les »).**
+Fin de la couche historique côté serveur : plus aucun code ne lit `req.user.role`.
+`middleware/requireRole.js` supprimé ; les tableaux `ecriture` des routes ne contiennent plus que
+`authRequired`. **Conséquence assumée** : les comptes antérieurs au 2026-09-13 portant un rôle
+texte (`comptable`, `ouvrier`… — 2 comptes « comptable » actifs en base de dev) obtiennent les
+mêmes droits qu'un compte sans rôle d'entreprise, c'est-à-dire tout, tant que le propriétaire ne
+leur affecte pas un rôle restreint.
+- `salaries.js` : `isAdmin` (rôle texte) retiré. `resolveAccessibleSalarie` ne garantit plus que
+  le cloisonnement par entreprise (les restrictions décident du reste). La règle « on ne décide
+  pas de sa propre demande de congé » devient `estSaPropreDemande` : seule exception, le manager
+  ou le propriétaire. **Faille au passage** : l'ancienne règle était levée par le rôle texte
+  `admin` — que portent tous les comptes créés depuis le 2026-09-13 — donc n'importe quel salarié
+  récent pouvait approuver ses propres congés.
+- Tests : le pont de `helpers.js` qui écrivait le rôle texte en base est retiré ; les 21 tests
+  « l'ouvrier reçoit 403 » passent par `restreindreEcritures(entrepriseId, email, ressources)`,
+  qui affecte un vrai rôle d'entreprise retirant les écritures sur la ressource visée. Ils
+  vérifient donc désormais aussi que chaque route est reliée à la bonne ressource du catalogue.
+- **Frontend aligné (même jour, « Oui, aligne-les »)** : `src/components/roles.js`
+  (`ROLE_DEFINITIONS`, listes d'onglets codées en dur par rôle) et son test sont supprimés ;
+  l'état `role` d'`App` aussi. Seules les restrictions du rôle d'entreprise décident : onglets
+  (déjà filtrés), « Gérer les options » (`modules_actifs/modifier`), boutons de gestion RH
+  (`salaries/modifier`), fiche entreprise et localisation (`entreprise/modifier`), compte bancaire
+  principal (`banques/modifier`), Surveillance/Équipements (`cameras|equipements/creer`).
+  L'assistant de configuration n'est plus proposé qu'au **propriétaire** (avant : rôle texte
+  admin/directeur, donc chez chaque salarié récent). Menu utilisateur : nom du rôle d'entreprise,
+  « Propriétaire » ou « Aucun rôle » (nouveau champ `roleNom` de `mes-restrictions`) ; la liste
+  des employés affiche aussi le rôle d'entreprise (`roleNom`) au lieu du texte. Vérifié dans le
+  navigateur avec trois comptes jetables (ancien « comptable » sans rôle → tout visible et
+  « Aucun rôle » ; rôle restreint → arrivée sur l'accueil, boutons RH masqués, fiche entreprise
+  en lecture seule, zéro 403 ; propriétaire → « Propriétaire »), supprimés ensuite. Le rôle texte
+  n'est plus lu nulle part ; la colonne et le champ du jeton restent, inertes.
+
+**Masquage des écrans non consultables (même jour, sur demande : « Oui, masque-les »).**
+- `GET /api/roles/mes-restrictions` (hors catalogue, sinon un rôle privé de `roles/lire` ne
+  connaîtrait pas ses propres restrictions) → `{ proprietaire, roleId, restrictions }`.
+- `src/lib/restrictions.jsx` : contexte React + `RESSOURCES_ONGLETS` (écran de navigation →
+  ressources dont la lecture conditionne l'affichage ; `ressources` = toutes requises, `uneParmi`
+  = au moins une, pour les modules composés Cultures/Poulailler/Pisciculture). Les onglets internes
+  de ces modules portent leurs propres `ressources` ; `ModuleTabBar` les filtre et bascule sur le
+  premier onglet visible si l'actif disparaît. Navbar, menu mobile et grille d'accueil suivent.
+- `App` charge les restrictions à chaque changement d'utilisateur, les relit au retour sur l'onglet
+  du navigateur et à chaque 403 `restriction` (événement `agri-restrictions-changed` émis par
+  `api.js`), et retient le contenu des écrans le temps de la première lecture.
+- `HomeOverview` / `NotificationsModule` n'interrogent que les sources consultables (un seul 403
+  vidait tout le tableau de bord) et masquent les cartes correspondantes plutôt que d'afficher 0.
+
+**Vérifié dans le navigateur intégré** (Vite + backend Docker reconstruit, entreprise jetable
+supprimée ensuite) avec un salarié privé de la lecture de contacts/devis/finances/factures/
+salariés/parcelles/achats : catégories Commercial et Finance absentes, Cultures réduit à
+Stocks + Registre (bascule automatique depuis Parcelles), Poulailler sans Ventes/Achats/
+Comptabilité, URL directe vers un écran masqué → accueil. **Trois défauts trouvés à l'écran et
+corrigés** (invisibles aux tests unitaires) : (1) à la restauration de session `user` reste
+`null` le temps de `/auth/me`, l'attente se fonde donc sur le jeton ; (2) chaque relecture
+recréait un objet identique et relançait les chargements de tous les écrans — l'ancien objet est
+conservé si le contenu est inchangé ; (3) un écran masqué demandé par URL se montait une fois
+avant la redirection — seul un onglet présent dans `availableTabs` est rendu. Résultat mesuré :
+**zéro 403** au chargement des écrans testés. Le propriétaire voit tout.
+
+---
+
 ### Rôles par entreprise — retrait du niveau d'accès imposé — 2026-09-13
 
 Sur demande de l'utilisateur : « enlève l'ancien sélecteur de rôle ». Il y en avait **deux** — la

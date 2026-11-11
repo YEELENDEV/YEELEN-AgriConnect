@@ -1,4 +1,4 @@
-import { app, pool, request, registerEntreprise, createEmployeeLogin } from './helpers.js';
+import { app, pool, request, registerEntreprise, createEmployeeLogin, restreindreEcritures } from './helpers.js';
 
 afterAll(async () => { await pool.end(); });
 
@@ -41,6 +41,7 @@ describe('Business / finances — rôles', () => {
   test('ouvrier : GET autorisé, POST et DELETE → 403', async () => {
     const admin = await registerEntreprise();
     const ouvrier = await createEmployeeLogin(admin.token, 'ouvrier');
+    await restreindreEcritures(admin.entrepriseId, ouvrier.email, ['finances']);
     const entry = (await request(app).post('/api/business/finances').set(bearer(admin.token)).send({ montant: 100, description: 'x' })).body.entry;
 
     expect((await request(app).get('/api/business/finances').set(bearer(ouvrier.token))).status).toBe(200);

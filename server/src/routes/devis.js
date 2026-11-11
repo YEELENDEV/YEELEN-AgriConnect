@@ -1,7 +1,6 @@
 import express from 'express';
 import crypto from 'crypto';
 import { authRequired } from '../middleware/auth.js';
-import { requireRole } from '../middleware/requireRole.js';
 import { pool } from '../db.js';
 import { sendDevisEmail } from '../services/mailer.js';
 import { syncDevisPaiement } from '../utils/financeSync.js';
@@ -693,7 +692,7 @@ router.post('/:id/envoyer', authRequired, async (req, res) => {
 
 // Valide manuellement un devis (accord obtenu par téléphone, en personne, etc.),
 // sans passer par le lien de signature électronique. Réservé à l'admin.
-router.post('/:id/valider-manuel', authRequired, requireRole('admin'), async (req, res) => {
+router.post('/:id/valider-manuel', authRequired, async (req, res) => {
   const { confirmePar } = req.body;
   if (!confirmePar || !confirmePar.trim()) {
     return res.status(400).json({ error: 'Précisez qui a donné son accord (nom du client).' });
@@ -732,7 +731,7 @@ router.post('/:id/valider-manuel', authRequired, requireRole('admin'), async (re
 // signature), donc aucune réversion n'est nécessaire ici, contrairement à
 // remettre-brouillon. Statut terminal simple, pas de retour possible vers Brouillon
 // depuis Annulé (recréer un nouveau devis plutôt que ressusciter celui-ci).
-router.post('/:id/annuler', authRequired, requireRole('admin'), async (req, res) => {
+router.post('/:id/annuler', authRequired, async (req, res) => {
   try {
     const check = await pool.query('SELECT statut, numero FROM devis WHERE id = $1 AND entreprise_id = $2', [req.params.id, req.user.entrepriseId]);
     if (check.rows.length === 0) return res.status(404).json({ error: 'Devis introuvable.' });
@@ -796,22 +795,45 @@ router.get('/public/:token', async (req, res) => {
 //  SIGNATURE (sans authentification, via token)
 // ═══════════════════════════════════════════════════════════
 
+// Seuls ces statuts sont signables par le client. Le lien public reste valide après la
+// facturation (même page, intitulée « Facture ») et après une annulation : l'ancienne règle
+// (« tout sauf Signé/Facturé ») laissait re-signer une facture payée ou un devis annulé, ce
+// qui repassait le statut à « Signé » et décomptait le stock une seconde fois.
+const STATUTS_SIGNABLES = ['Envoyé', 'Devis'];
+// Signature = image PNG/JPEG en data URL produite par le pad de DevisPublicView. Bornée pour
+// qu'un appel anonyme ne puisse pas stocker des mégaoctets arbitraires en base.
+const SIGNATURE_DATA_URL = /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/;
+const SIGNATURE_TAILLE_MAX = 500_000;
+
 router.post('/public/:token/signer', async (req, res) => {
   const { signatureData, signataireNom } = req.body;
-  if (!signatureData || !signataireNom) {
+  if (!signatureData || !signataireNom || typeof signatureData !== 'string' || typeof signataireNom !== 'string') {
+    return res.status(400).json({ error: 'La signature et le nom du signataire sont requis.' });
+  }
+  if (signatureData.length > SIGNATURE_TAILLE_MAX || !SIGNATURE_DATA_URL.test(signatureData)) {
+    return res.status(400).json({ error: 'Signature invalide.' });
+  }
+  const nomSignataire = signataireNom.trim().slice(0, 200);
+  if (!nomSignataire) {
     return res.status(400).json({ error: 'La signature et le nom du signataire sont requis.' });
   }
   try {
     const check = await pool.query(`SELECT id, statut, entreprise_id AS "entrepriseId" FROM devis WHERE token_public = $1`, [req.params.token]);
     if (check.rows.length === 0) return res.status(404).json({ error: 'Devis introuvable.' });
-    if (check.rows[0].statut === 'Signé' || check.rows[0].statut === 'Facturé') {
-      return res.status(400).json({ error: 'Ce devis a déjà été signé.' });
+    if (!STATUTS_SIGNABLES.includes(check.rows[0].statut)) {
+      return res.status(400).json({ error: 'Ce devis ne peut plus être signé.' });
     }
 
-    await pool.query(
-      `UPDATE devis SET statut = 'Signé', signature_data = $1, signataire_nom = $2, date_signature = now() WHERE token_public = $3`,
-      [signatureData, signataireNom, req.params.token]
+    // Mise à jour conditionnelle (statut revérifié dans le WHERE) : deux soumissions
+    // simultanées ne peuvent pas signer deux fois — ni donc décompter le stock deux fois.
+    const maj = await pool.query(
+      `UPDATE devis SET statut = 'Signé', signature_data = $1, signataire_nom = $2, date_signature = now()
+       WHERE token_public = $3 AND statut = ANY($4)`,
+      [signatureData, nomSignataire, req.params.token, STATUTS_SIGNABLES]
     );
+    if (maj.rowCount === 0) {
+      return res.status(400).json({ error: 'Ce devis ne peut plus être signé.' });
+    }
     await logFieldChanges(check.rows[0].entrepriseId, 'devis', check.rows[0].id, null,
       { statut: check.rows[0].statut }, { statut: 'Signé' }, ['statut']);
     const lignesResult = await pool.query(
@@ -832,7 +854,7 @@ router.post('/public/:token/signer', async (req, res) => {
 //  CONVERSION EN FACTURE
 // ═══════════════════════════════════════════════════════════
 
-router.post('/:id/facturer', authRequired, requireRole('admin'), async (req, res) => {
+router.post('/:id/facturer', authRequired, async (req, res) => {
   // Deux modes d'entrée :
   //  - paymentTermId (+ acompte optionnel) : les échéances sont GÉNÉRÉES depuis la
   //    condition de paiement (account.payment.term-like) ;
@@ -1055,7 +1077,7 @@ router.post('/:id/facturer', authRequired, requireRole('admin'), async (req, res
 // savoir s'il faut le restituer ici.
 const STATUTS_APRES_SIGNATURE = ['Signé', 'Facturé', 'Non payé', 'Payé partiellement', 'Payé'];
 
-router.post('/:id/remettre-brouillon', authRequired, requireRole('admin'), async (req, res) => {
+router.post('/:id/remettre-brouillon', authRequired, async (req, res) => {
   const client = await pool.connect();
   try {
     const check = await client.query(
@@ -1148,7 +1170,7 @@ router.post('/:id/remettre-brouillon', authRequired, requireRole('admin'), async
   }
 });
 
-router.post('/:id/echeances/:echeanceId/payer', authRequired, requireRole('admin'), async (req, res) => {
+router.post('/:id/echeances/:echeanceId/payer', authRequired, async (req, res) => {
   const client = await pool.connect();
   try {
     const devisResult = await client.query(
@@ -1289,7 +1311,7 @@ router.get('/public/:token/pdf', async (req, res) => {
 // statut (contrairement à PUT /:id, verrouillé en Brouillon), puisque ces champs n'ont
 // de sens qu'une fois le devis signé/facturé. Aucun verrou de statut ici : réinscriptible
 // même après l'auto-remplissage de POST /:id/facturer.
-router.patch('/:id/lignes-quantites', authRequired, requireRole('admin'), async (req, res) => {
+router.patch('/:id/lignes-quantites', authRequired, async (req, res) => {
   const { lignes } = req.body;
   if (!Array.isArray(lignes) || lignes.length === 0) {
     return res.status(400).json({ error: 'Au moins une ligne est requise.' });

@@ -1,4 +1,4 @@
-import { app, pool, request, registerEntreprise, createClient, createEmployeeLogin } from './helpers.js';
+import { app, pool, request, registerEntreprise, createClient, createEmployeeLogin, restreindreEcritures } from './helpers.js';
 
 afterAll(async () => { await pool.end(); });
 
@@ -83,6 +83,7 @@ describe('Paiements clients autonomes (étape 6 : account.payment sans facture)'
 
   test('écritures réservées admin/directeur (ouvrier → 403, lecture OK)', async () => {
     const ouvrier = await createEmployeeLogin(admin.token, 'ouvrier');
+    await restreindreEcritures(admin.entrepriseId, ouvrier.email, ['paiements']);
     expect((await request(app).get('/api/paiements').set(bearer(ouvrier.token))).status).toBe(200);
     expect((await request(app).post('/api/paiements').set(bearer(ouvrier.token)).send({ partnerId: clientId, amount: 10 })).status).toBe(403);
   });
@@ -175,6 +176,7 @@ describe('Affectation d\'un avoir posté sur une facture ouverte (allocate-credi
 
   test('écriture réservée admin/directeur (ouvrier → 403)', async () => {
     const ouvrier = await createEmployeeLogin(admin.token, 'ouvrier');
+    await restreindreEcritures(admin.entrepriseId, ouvrier.email, ['factures']);
     const cn = await avoirPoste(100);
     const facture = await facturePostee(100);
     expect((await request(app).post(`/api/factures/${cn.id}/allocate-credit`).set(bearer(ouvrier.token))

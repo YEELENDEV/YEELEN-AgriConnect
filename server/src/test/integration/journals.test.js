@@ -1,4 +1,4 @@
-import { app, pool, request, registerEntreprise, createEmployeeLogin } from './helpers.js';
+import { app, pool, request, registerEntreprise, createEmployeeLogin, restreindreEcritures } from './helpers.js';
 import { prochainNumeroJournal } from '../../utils/journalSequence.js';
 
 afterAll(async () => { await pool.end(); });
@@ -54,6 +54,7 @@ describe('Journaux (account.journal-like) — seed, CRUD, rôles, isolation', ()
 
   test('écritures réservées admin/directeur (ouvrier → 403, lecture OK)', async () => {
     const ouvrier = await createEmployeeLogin(admin.token, 'ouvrier');
+    await restreindreEcritures(admin.entrepriseId, ouvrier.email, ['referentiels_comptables']);
     expect((await request(app).get('/api/journals').set(bearer(ouvrier.token))).status).toBe(200);
     expect((await request(app).post('/api/journals').set(bearer(ouvrier.token)).send({ name: 'KO', code: 'KO2', type: 'sale' })).status).toBe(403);
   });

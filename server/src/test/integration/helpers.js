@@ -5,8 +5,32 @@ import request from 'supertest';
 import app from '../../app.js';
 import { pool } from '../../db.js';
 import { invaliderCacheAbonnement } from '../../middleware/subscriptionGuard.js';
+import { viderCacheRoles } from '../../utils/rolesService.js';
 
 export { app, pool, request };
+
+const ACTIONS_ECRITURE = ['creer', 'modifier', 'supprimer', 'valider', 'facturer', 'receptionner', 'encaisser'];
+
+// Rattache l'utilisateur `email` à un rôle d'entreprise qui lui RETIRE les écritures (création,
+// modification, suppression et actions sensibles) sur les ressources données, la lecture restant
+// permise. C'est ainsi qu'une entreprise ferme quelque chose depuis le retrait des `requireRole`
+// (2026-11-11) : les tests de « l'ouvrier reçoit 403 » passent désormais par ce mécanisme réel.
+export async function restreindreEcritures(entrepriseId, email, ressources, actions = ACTIONS_ECRITURE) {
+  const { rows: [u] } = await pool.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1)', [email]);
+  seq += 1;
+  const { rows: [role] } = await pool.query(
+    'INSERT INTO roles (entreprise_id, nom) VALUES ($1, $2) RETURNING id',
+    [entrepriseId, `Lecture seule ${ressources.join(', ')} #${seq}-${Date.now()}`]
+  );
+  for (const ressource of ressources) {
+    for (const action of actions) {
+      await pool.query('INSERT INTO role_restrictions (role_id, ressource, action) VALUES ($1, $2, $3)', [role.id, ressource, action]);
+    }
+  }
+  await pool.query('UPDATE entreprise_utilisateurs SET role_id = $1 WHERE entreprise_id = $2 AND user_id = $3', [role.id, entrepriseId, u.id]);
+  viderCacheRoles();
+  return role.id;
+}
 
 let seq = 0;
 export function uniqueEmail(prefix = 'it') {
@@ -107,19 +131,9 @@ export async function createEmployeeLogin(adminToken, role = 'ouvrier', extra = 
   }
   const salarieId = res.body.salarie?.id;
 
-  // L'APPLICATION N'ATTRIBUE PLUS DE NIVEAU D'ACCÈS : tout est ouvert par défaut, seules les
-  // restrictions posées par l'entreprise ferment quelque chose. La colonne texte `role` est donc
-  // écrite neutre par POST /salaries. Mais la couche historique — les 63 `requireRole` — la lit
-  // encore, et des dizaines de tests vérifient qu'elle bloque bien. On pose donc le rôle
-  // directement en base ici, pour continuer à exercer cette couche jusqu'à son retrait.
-  // Ce contournement disparaîtra AVEC elle ; sa présence signale précisément ce qui reste à faire.
-  await pool.query(
-    `UPDATE entreprise_utilisateurs eu SET role = $1
-       FROM users u WHERE u.id = eu.user_id AND LOWER(u.email) = LOWER($2)`,
-    [role, compteEmail]
-  );
-  await pool.query('UPDATE users SET role = $1 WHERE LOWER(email) = LOWER($2)', [role, compteEmail]);
-
+  // `role` ne sert plus qu'à nommer l'email : depuis le retrait des `requireRole` (2026-11-11), le
+  // rôle texte ne décide plus rien côté serveur. Pour restreindre ce compte, voir
+  // restreindreEcritures() ci-dessus. (L'ancien pont qui écrivait ce texte en base est retiré.)
   const login = await request(app).post('/api/auth/login').send({ email: compteEmail, password });
   if (login.status !== 200 || !login.body.token) {
     throw new Error(`login employé a échoué (${login.status}): ${JSON.stringify(login.body)}`);

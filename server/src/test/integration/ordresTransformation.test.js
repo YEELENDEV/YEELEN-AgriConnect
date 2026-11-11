@@ -1,7 +1,7 @@
 // Transformation agroalimentaire, étape 2 : ordres de transformation — exécute une recette,
 // vérifie la consommation/production réelle du stock (produits.quantite) et un lot de sortie
 // créé (stock_lots), puis l'annulation (DELETE) qui restitue tout.
-import { request, app, pool, registerEntreprise, createProduit, createEmployeeLogin } from './helpers.js';
+import { request, app, pool, registerEntreprise, createProduit, createEmployeeLogin, restreindreEcritures } from './helpers.js';
 
 afterAll(async () => { await pool.end(); });
 
@@ -140,6 +140,7 @@ describe('Transformation — ordres de transformation (étape 2)', () => {
   test('un ouvrier ne peut pas exécuter/annuler un ordre, mais peut lire', async () => {
     const admin = await registerEntreprise();
     const ouvrier = await createEmployeeLogin(admin.token, 'ouvrier');
+    await restreindreEcritures(admin.entrepriseId, ouvrier.email, ['ordres_transformation']);
     const { recetteId } = await creerRecetteFromage(admin.token);
 
     const create = await request(app).post('/api/ordres-transformation').set('Authorization', `Bearer ${ouvrier.token}`)

@@ -10,7 +10,6 @@
 import crypto from 'crypto';
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';
-import { requireRole } from '../middleware/requireRole.js';
 import { pool } from '../db.js';
 
 const router = express.Router();
@@ -69,7 +68,7 @@ router.get('/', authRequired, async (req, res) => {
   }
 });
 
-router.post('/', authRequired, requireRole('admin', 'directeur'), async (req, res) => {
+router.post('/', authRequired, async (req, res) => {
   const { nom, emplacement, emplacementType, emplacementId, typeFlux, url, rafraichissement, notes } = req.body;
   if (!nom || !String(nom).trim()) return res.status(400).json({ error: 'Le nom de la caméra est requis.' });
   const erreurUrl = verifierUrl(url);
@@ -94,7 +93,7 @@ router.post('/', authRequired, requireRole('admin', 'directeur'), async (req, re
   }
 });
 
-router.put('/:id', authRequired, requireRole('admin', 'directeur'), async (req, res) => {
+router.put('/:id', authRequired, async (req, res) => {
   const { nom, emplacement, emplacementType, emplacementId, typeFlux, url, rafraichissement, actif, notes } = req.body;
   if (url !== undefined) {
     const erreurUrl = verifierUrl(url);
@@ -123,7 +122,7 @@ router.put('/:id', authRequired, requireRole('admin', 'directeur'), async (req, 
   }
 });
 
-router.delete('/:id', authRequired, requireRole('admin', 'directeur'), async (req, res) => {
+router.delete('/:id', authRequired, async (req, res) => {
   try {
     const { rowCount } = await pool.query(
       'DELETE FROM cameras WHERE id = $1 AND entreprise_id = $2',
@@ -243,7 +242,7 @@ router.post('/alertes/:id/vue', authRequired, async (req, res) => {
 });
 
 // Régénérer le token révoque immédiatement l’ancienne URL : à utiliser si elle a fuité.
-router.post('/:id/regenerer-token', authRequired, requireRole('admin', 'directeur'), async (req, res) => {
+router.post('/:id/regenerer-token', authRequired, async (req, res) => {
   try {
     const { rows } = await pool.query(
       `UPDATE cameras SET token_alerte = $1 WHERE id = $2 AND entreprise_id = $3

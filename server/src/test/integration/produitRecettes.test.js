@@ -1,7 +1,7 @@
 // Transformation agroalimentaire, étape 1 : recettes de transformation. CRUD recette + lignes,
 // validation cross-entreprise, isolation locataire. Pas de test de consommation de stock —
 // hors périmètre de cette étape (voir CLAUDE.md / docs/journal.md, étape 2 différée).
-import { request, app, registerEntreprise, createProduit, createEmployeeLogin } from './helpers.js';
+import { request, app, registerEntreprise, createProduit, createEmployeeLogin, restreindreEcritures } from './helpers.js';
 
 describe('Transformation — recettes (étape 1)', () => {
   test('CRUD complet : créer une recette, ajouter/supprimer des lignes, supprimer la recette', async () => {
@@ -118,6 +118,7 @@ describe('Transformation — recettes (étape 1)', () => {
   test('un ouvrier (rôle non admin/directeur) ne peut pas écrire, mais peut lire', async () => {
     const admin = await registerEntreprise();
     const ouvrier = await createEmployeeLogin(admin.token, 'ouvrier');
+    await restreindreEcritures(admin.entrepriseId, ouvrier.email, ['recettes']);
     const fini = await createProduit(admin.token, { module: 'Cultures', nom: 'Confiture' });
 
     const create = await request(app)

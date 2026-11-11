@@ -42,6 +42,29 @@ describe('MFA — TOTP', () => {
     expect(step2.status).toBe(200);
     expect(step2.body.token).toBeTruthy();
   });
+
+  test('2FA active : setup refusé (409), désactivation exige le bon mot de passe', async () => {
+    const user = await registerEntreprise();
+    const setup = await request(app).post('/api/mfa/setup').set(bearer(user.token)).send({ method: 'totp' });
+    const code = await generateOtp({ strategy: 'totp', secret: setup.body.secret });
+    await request(app).post('/api/mfa/verify').set(bearer(user.token)).send({ code, method: 'totp' });
+
+    // Un jeton seul ne permet plus de remplacer le secret TOTP d'un compte protégé.
+    const reSetup = await request(app).post('/api/mfa/setup').set(bearer(user.token)).send({ method: 'totp' });
+    expect(reSetup.status).toBe(409);
+
+    const sansMdp = await request(app).post('/api/mfa/disable').set(bearer(user.token)).send({});
+    expect(sansMdp.status).toBe(400);
+    const mauvaisMdp = await request(app).post('/api/mfa/disable').set(bearer(user.token)).send({ password: 'Mauvais123' });
+    expect(mauvaisMdp.status).toBe(401);
+    let me = await request(app).get('/api/auth/me').set(bearer(user.token));
+    expect(me.body.user.mfaEnabled).toBe(true);
+
+    const ok = await request(app).post('/api/mfa/disable').set(bearer(user.token)).send({ password: user.password });
+    expect(ok.status).toBe(200);
+    me = await request(app).get('/api/auth/me').set(bearer(user.token));
+    expect(me.body.user.mfaEnabled).toBe(false);
+  });
 });
 
 describe('MFA — code par email', () => {

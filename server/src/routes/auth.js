@@ -4,13 +4,12 @@
 // /register et /login (forcément publiques), sont protégées par authRequired.
 import express from 'express';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
 // otplib 13 : import ESM natif (dual ESM/CJS). Voir le commentaire équivalent dans mfa.js.
 import { verify as verifyTotp } from 'otplib';
-import { env } from '../config/env.js';
 import { pool } from '../db.js';
-import { authRequired } from '../middleware/auth.js';
-import { requireRole } from '../middleware/requireRole.js';
+import { authRequired, signerToken } from '../middleware/auth.js';
+import { validerMotDePasse, validerEmail, BCRYPT_COUT, HASH_FACTICE } from '../utils/motDePasse.js';
+import { CATEGORIES_PRODUITS_DEFAUT, CONGES_TYPES_DEFAUT, PAYMENT_TERMS_DEFAUT } from '../utils/referentielsDefaut.js';
 import { logAuditEvent, getAuditLog, countRecentAuditEvents, countRecentAuditEventsByIp, extraireIp } from '../utils/auditLog.js';
 import { TRIAL_DAYS } from '../config/abonnement.js';
 import { verifierRecaptcha } from '../utils/recaptcha.js';
@@ -22,49 +21,15 @@ import { EMPLACEMENTS_STOCK_DEFAUT } from '../utils/emplacementsStockDefaut.js';
 
 const router = express.Router();
 
-// Catégories de produits par défaut créées pour toute nouvelle entreprise — même liste
-// que CATEGORIES_PAR_DEFAUT dans server/src/db/migrate.js (qui ne l'applique, elle, qu'aux
-// entreprises qui avaient déjà du stock au moment de la fusion cultures_stocks/
-// poulailler_stocks → produits du 2026-08-18) : sans ce seed ici, une entreprise inscrite
-// après la fusion n'aurait aucune catégorie et ne pourrait ajouter aucun article de stock
-// tant qu'un admin n'en crée pas une à la main via "Gérer les catégories" — bug réel trouvé
-// en répétant la migration sur une copie de sauvegarde avant de l'appliquer en production.
-const CATEGORIES_PRODUITS_PAR_DEFAUT = [
-  { module: 'Cultures', nom: 'Semences', ordre: 0 },
-  { module: 'Cultures', nom: 'Engrais', ordre: 1 },
-  { module: 'Cultures', nom: 'Produits phytosanitaires', ordre: 2 },
-  { module: 'Cultures', nom: 'Autre', ordre: 3 },
-  { module: 'Poulailler', nom: 'Aliment', ordre: 0 },
-  { module: 'Poulailler', nom: 'Œufs', ordre: 1 },
-  { module: 'Poulailler', nom: 'Volailles vivantes', ordre: 2 },
-  { module: 'Poulailler', nom: 'Autre', ordre: 3 },
-  { module: 'Pisciculture', nom: 'Aliment', ordre: 0 },
-  { module: 'Pisciculture', nom: 'Poissons vivants', ordre: 1 },
-  { module: 'Pisciculture', nom: 'Alevins', ordre: 2 },
-  { module: 'Pisciculture', nom: 'Autre', ordre: 3 },
-];
+// Nombre d'échecs de mot de passe tolérés par compte sur la fenêtre ci-dessous avant de
+// refuser temporairement toute nouvelle tentative (anti force brute, en complément du
+// limiteur par IP posé dans app.js — qui, lui, ne protège pas d'une attaque distribuée).
+const ECHECS_MDP_MAX = 10;
+const FENETRE_ECHECS_MDP_MIN = 15;
 
-// Types de congés par défaut d'une nouvelle entreprise (mêmes valeurs que
-// CONGES_TYPES_DEFAUT dans migrate.js:seedCongesTypesForExistingEntreprises).
-const CONGES_TYPES_PAR_DEFAUT = [
-  { nom: 'Congés payés', paye: true, justificatif_requis: false, couleur: '#3F6B3B', ordre: 1 },
-  { nom: 'Maladie', paye: true, justificatif_requis: true, couleur: '#C1861F', ordre: 2 },
-  { nom: 'Sans solde', paye: false, justificatif_requis: false, couleur: '#5B6357', ordre: 3 },
-  { nom: 'Événement familial', paye: true, justificatif_requis: false, couleur: '#2E6E8E', ordre: 4 },
-];
-
-// Conditions de paiement par défaut (étape 0 Comptabilité — mêmes valeurs que
-// PAYMENT_TERMS_DEFAUT dans migrate.js:seedPaymentTermsForExistingEntreprises).
-const PAYMENT_TERMS_PAR_DEFAUT = [
-  { name: 'Paiement immédiat', sequence: 10, lines: [{ value: 'balance', value_amount: 0, delay_type: 'days_after', nb_days: 0, ordre: 0 }] },
-  { name: '30 jours', sequence: 20, lines: [{ value: 'balance', value_amount: 0, delay_type: 'days_after', nb_days: 30, ordre: 0 }] },
-  { name: 'Fin de mois suivant', sequence: 30, lines: [{ value: 'balance', value_amount: 0, delay_type: 'days_after_end_of_month', nb_days: 0, ordre: 0 }] },
-  { name: '30 % à la commande, solde à 30 jours', sequence: 40, lines: [
-    { value: 'percent', value_amount: 30, delay_type: 'days_after', nb_days: 0, ordre: 0 },
-    { value: 'balance', value_amount: 0, delay_type: 'days_after', nb_days: 30, ordre: 1 },
-  ] },
-];
-
+// Référentiels amorcés pour toute nouvelle entreprise : listes partagées avec migrate.js via
+// utils/referentielsDefaut.js. Sans les catégories de produits, une entreprise inscrite ne
+// pourrait ajouter aucun article de stock tant qu'un admin n'en crée pas une à la main.
 // ─── POST /api/auth/register ───────────────────────────────────────────────
 // Crée en une seule transaction : le compte utilisateur, sa nouvelle entreprise, et le
 // lien entre les deux avec le rôle 'admin' — celui qui s'inscrit est toujours admin de
@@ -76,6 +41,10 @@ router.post('/register', async (req, res) => {
   if (!email || !password) {
     return res.status(400).json({ error: 'Email et mot de passe requis.' });
   }
+  const erreurEmail = validerEmail(email);
+  if (erreurEmail) return res.status(400).json({ error: erreurEmail });
+  const erreurMdp = validerMotDePasse(password);
+  if (erreurMdp) return res.status(400).json({ error: erreurMdp });
 
   // pays/téléphone/TVA/adresse : facultatifs pour un compte 'particulier' (comme le SIRET),
   // obligatoires pour 'entreprise' — décision explicite de l'utilisateur, voir docs/journal.md.
@@ -118,7 +87,7 @@ router.post('/register', async (req, res) => {
       return res.status(409).json({ error: 'Un utilisateur avec cet email existe déjà.' });
     }
 
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await bcrypt.hash(password, BCRYPT_COUT);
 
     // Transaction explicite : les 3 INSERT (user, entreprise, lien) doivent réussir
     // ensemble ou pas du tout — un utilisateur sans entreprise, ou une entreprise sans
@@ -160,7 +129,7 @@ router.post('/register', async (req, res) => {
       [entreprise.id, user.id, 'admin']
     );
 
-    for (const cat of CATEGORIES_PRODUITS_PAR_DEFAUT) {
+    for (const cat of CATEGORIES_PRODUITS_DEFAUT) {
       await client.query(
         `INSERT INTO produit_categories (entreprise_id, module, nom, ordre) VALUES ($1, $2, $3, $4)
          ON CONFLICT (entreprise_id, module, nom) DO NOTHING`,
@@ -168,7 +137,7 @@ router.post('/register', async (req, res) => {
       );
     }
 
-    for (const t of CONGES_TYPES_PAR_DEFAUT) {
+    for (const t of CONGES_TYPES_DEFAUT) {
       await client.query(
         `INSERT INTO conges_types (entreprise_id, nom, paye, justificatif_requis, couleur, ordre)
          VALUES ($1, $2, $3, $4, $5, $6)
@@ -177,7 +146,7 @@ router.post('/register', async (req, res) => {
       );
     }
 
-    for (const term of PAYMENT_TERMS_PAR_DEFAUT) {
+    for (const term of PAYMENT_TERMS_DEFAUT) {
       const ptRes = await client.query(
         `INSERT INTO payment_terms (entreprise_id, name, sequence) VALUES ($1, $2, $3)
          ON CONFLICT (entreprise_id, name) DO NOTHING RETURNING id`,
@@ -323,11 +292,7 @@ router.post('/confirmer-inscription', async (req, res) => {
     await logAuditEvent({ entrepriseId: row.entreprise_id, userId: row.id, email: row.email, action: 'inscription_confirmee', req });
 
     const isPlatformAdmin = row.is_platform_admin === true;
-    const token = jwt.sign(
-      { sub: row.id, email: row.email, entrepriseId: row.entreprise_id, role: row.role, isPlatformAdmin },
-      env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+    const token = signerToken({ sub: row.id, email: row.email, entrepriseId: row.entreprise_id, role: row.role, isPlatformAdmin });
     return res.json({
       token,
       user: { id: row.id, email: row.email, role: row.role, createdAt: row.created_at, isPlatformAdmin },
@@ -385,7 +350,7 @@ router.post('/renvoyer-code-inscription', async (req, res) => {
 router.post('/login', async (req, res) => {
   const { email, password, mfaCode, confirmationCode } = req.body;
 
-  if (!email || !password) {
+  if (!email || !password || typeof email !== 'string' || typeof password !== 'string') {
     return res.status(400).json({ error: 'Email et mot de passe requis.' });
   }
 
@@ -396,6 +361,9 @@ router.post('/login', async (req, res) => {
     );
 
     if (result.rows.length === 0) {
+      // Comparaison factice : sans elle, un email inconnu répond en ~1 ms contre ~100 ms pour un
+      // email existant (coût bcrypt) — l'écart de temps suffisait à énumérer les comptes.
+      await bcrypt.compare(String(password), HASH_FACTICE);
       await logAuditEvent({ email, action: 'login_failed_unknown_email', req });
       // Message générique volontaire ("Identifiants invalides", pas "email inconnu") :
       // ne pas révéler si l'email existe ou non, pour ne pas faciliter l'énumération
@@ -417,7 +385,16 @@ router.post('/login', async (req, res) => {
     );
     const entrepriseId = rattachement.rows[0]?.entreprise_id ?? null;
 
-    const valid = await bcrypt.compare(password, user.password);
+    // Verrouillage temporaire après trop d'échecs sur CE compte (force brute distribuée sur
+    // plusieurs IP, que le limiteur par IP ne voit pas). Vérifié avant bcrypt : pendant le
+    // verrouillage, même le bon mot de passe est refusé — sinon le verrou ne protège rien.
+    const echecsRecents = await countRecentAuditEvents(user.email, ['login_failed_password'], FENETRE_ECHECS_MDP_MIN);
+    if (echecsRecents >= ECHECS_MDP_MAX) {
+      await logAuditEvent({ entrepriseId, userId: user.id, email: user.email, action: 'login_locked', req });
+      return res.status(429).json({ error: `Trop de tentatives échouées. Réessayez dans ${FENETRE_ECHECS_MDP_MIN} minutes.` });
+    }
+
+    const valid = await bcrypt.compare(String(password), user.password);
     if (!valid) {
       await logAuditEvent({ entrepriseId, userId: user.id, email: user.email, action: 'login_failed_password', req });
       return res.status(401).json({ error: 'Identifiants invalides.' });
@@ -513,11 +490,7 @@ router.post('/login', async (req, res) => {
     // Le JWT porte entrepriseId/role/isPlatformAdmin en dur : une bascule de rôle ou du
     // flag is_platform_admin en base ne prend effet qu'à la prochaine connexion, pas en
     // temps réel sur un token déjà émis (voir requirePlatformAdmin.js).
-    const token = jwt.sign(
-      { sub: user.id, email: user.email, entrepriseId, role, isPlatformAdmin },
-      env.JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+    const token = signerToken({ sub: user.id, email: user.email, entrepriseId, role, isPlatformAdmin });
 
     await logAuditEvent({ entrepriseId, userId: user.id, email: user.email, action: 'login_success', req });
 
@@ -565,7 +538,7 @@ return res.json({
 // ─── GET /api/auth/audit-log — journal des connexions (admin uniquement) ──
 // Scopé par entreprise (req.user.entrepriseId), donc un admin ne voit que les
 // tentatives de connexion liées à sa propre entreprise, pas celles des autres.
-router.get('/audit-log', authRequired, requireRole('admin'), async (req, res) => {
+router.get('/audit-log', authRequired, async (req, res) => {
   try {
     const historique = await getAuditLog(req.user.entrepriseId);
     return res.json({ historique });

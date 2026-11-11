@@ -6,13 +6,12 @@
 // email inconnu n'a ni l'un ni l'autre.
 import { pool } from '../db.js';
 
-// x-forwarded-for peut contenir plusieurs IP séparées par des virgules (proxys en chaîne) —
-// on ne garde que la première, celle du client d'origine. `req?.ip` sert de repli quand
-// l'en-tête n'est pas présent (connexion directe, sans proxy). Extrait ici (au lieu de rester
-// dupliqué inline) car utilisé par un 3e appelant depuis l'abonnement Phase 1 (limite
-// d'inscriptions par IP, routes/auth.js) en plus de logAuditEvent et utils/mfaCode.js.
+// IP du client telle que résolue par Express selon le réglage `trust proxy` (app.js) : seul
+// un proxy de confiance (Caddy, réseau privé) peut fournir X-Forwarded-For. Lire cet en-tête
+// brut, comme avant, laissait n'importe quel client choisir son IP — et donc contourner la
+// limite d'inscriptions par IP. Utilisé par logAuditEvent, routes/auth.js et utils/mfaCode.js.
 export function extraireIp(req) {
-  return req?.headers?.['x-forwarded-for']?.split(',')[0]?.trim() || req?.ip || null;
+  return req?.ip || null;
 }
 
 // Enregistre un événement du journal d'audit (connexions, puis actions sensibles

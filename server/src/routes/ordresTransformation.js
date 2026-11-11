@@ -5,7 +5,6 @@
 // complet des mouvements de stock).
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';
-import { requireRole } from '../middleware/requireRole.js';
 import { pool } from '../db.js';
 import {
   consommerIngredientTransformation, restituerIngredientTransformation,
@@ -81,7 +80,7 @@ router.get('/:id', authRequired, async (req, res) => {
   }
 });
 
-router.post('/', authRequired, requireRole('admin', 'directeur'), async (req, res) => {
+router.post('/', authRequired, async (req, res) => {
   const { recetteId, quantiteProduite, dateTransformation, operateur, notes, numeroLotSortie, lotsEntrantsIds } = req.body;
   const quantite = Number(quantiteProduite);
   if (!recetteId || !(quantite > 0)) {
@@ -182,7 +181,7 @@ router.post('/', authRequired, requireRole('admin', 'directeur'), async (req, re
 // Annule un ordre : restitue les ingrédients consommés, retire l'article produit, supprime le
 // lot de sortie (rien d'autre ne peut encore le référencer, la déplétion FIFO étant hors
 // périmètre de ce projet — voir la note sur stock_lots dans migrate.js).
-router.delete('/:id', authRequired, requireRole('admin', 'directeur'), async (req, res) => {
+router.delete('/:id', authRequired, async (req, res) => {
   try {
     const ordre = await pool.query(
       `SELECT ${ORDRE_COLUMNS} FROM ordres_transformation o WHERE o.id = $1 AND o.entreprise_id = $2`,

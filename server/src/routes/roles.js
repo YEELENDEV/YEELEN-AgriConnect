@@ -7,7 +7,7 @@ import express from 'express';
 import { pool } from '../db.js';
 import { authRequired } from '../middleware/auth.js';
 import { RESSOURCES, ACTIONS, ACTIONS_SENSIBLES, TOUTES_ACTIONS } from '../permissions/catalogue.js';
-import { invaliderCacheRoles } from '../utils/rolesService.js';
+import { invaliderCacheRoles, restrictionsUtilisateur } from '../utils/rolesService.js';
 import { logAuditEvent } from '../utils/auditLog.js';
 
 const router = express.Router();
@@ -35,6 +35,30 @@ router.get('/catalogue', authRequired, (req, res) => {
     sections,
     actions: ACTIONS,
     actionsSensibles: ACTIONS_SENSIBLES,
+  });
+});
+
+// Les restrictions de l'utilisateur CONNECTÉ, pour que l'interface masque les écrans qu'il ne
+// peut pas consulter. Pur confort d'affichage : la vraie barrière reste permissionGuard, qui
+// refuse côté serveur. Hors catalogue (voir HORS_PERIMETRE) — sinon un rôle privé de
+// « roles/lire » ne pourrait même plus connaître ses propres restrictions.
+router.get('/mes-restrictions', authRequired, async (req, res) => {
+  const resolution = await restrictionsUtilisateur(req.user.entrepriseId, req.user.sub);
+  if (resolution.erreur) return res.status(503).json({ error: 'Restrictions momentanément indisponibles.' });
+  const restrictions = {};
+  for (const [ressource, actions] of Object.entries(resolution.restrictions || {})) {
+    restrictions[ressource] = [...actions].sort();
+  }
+  let roleNom = null;
+  if (resolution.roleId) {
+    const { rows } = await pool.query('SELECT nom FROM roles WHERE id = $1 AND entreprise_id = $2', [resolution.roleId, req.user.entrepriseId]);
+    roleNom = rows[0]?.nom || null;
+  }
+  return res.json({
+    proprietaire: resolution.proprietaire,
+    roleId: resolution.roleId,
+    roleNom,
+    restrictions: resolution.proprietaire ? {} : restrictions,
   });
 });
 

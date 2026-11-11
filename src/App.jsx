@@ -5,6 +5,8 @@ import { useTranslation } from 'react-i18next';
 import { setLanguage, hasExplicitLanguage, SUPPORTED_LANGS } from './i18n';
 import { useLocale, fmtDate, fmtMoneyWith as previewMoney, fmtDateWith as previewDate, DEVISES, LOCALES, PAYS, FUSEAUX, getLocaleConfig, jourEntreprise } from './lib/locale.jsx';
 import { normaliserNumeroWhatsapp, lienWhatsapp, partagerFichier } from './lib/whatsapp.js';
+import { escapeHtml, celluleCsv } from './lib/securite.js';
+import { RestrictionsContext, useRestrictions, creerVerificateur, ongletVisible, exigencesSatisfaites } from './lib/restrictions.jsx';
 import {
   Sprout, Droplet, Thermometer, Egg, ShoppingCart, Truck, Wallet, LogOut,
   Plus, Trash2, ToggleLeft, ToggleRight, Package, TrendingUp,
@@ -53,7 +55,7 @@ import {
   openDevisPdf, downloadDevisPdf, validerDevisManuel, payerEcheance, remettreDevisBrouillon, updateDevisLigneQuantites, annulerDevis,
   getCalendarEvents, createCalendarEvent, updateCalendarEvent, getRecoltes, createRecolte, updateRecolte, deleteRecolte,
   getOnboardingStatus, updateOnboardingStatus, updateEntreprise, getEntreprise,
-  getModulesActifs, updateModulesActifs, getTarifsModules,
+  getModulesActifs, updateModulesActifs, getTarifsModules, getMesRestrictions,
   getBillingStatus,
   rechercherVilleMeteo, getMeteo, getParcellesLocalisees, getAnalyseSol, getNdvi,
 } from './lib/api';
@@ -91,7 +93,6 @@ import InventaireRebutPanel from './components/InventaireRebutPanel.jsx';
 import TransfertsStockPanel from './components/TransfertsStockPanel.jsx';
 import { taxesLigneCalc as taxesLigneCalcPure } from './lib/taxes.js';
 const MonEspaceRh = lazy(() => import('./components/MonEspaceRh'));
-import { ROLE_DEFINITIONS, mapBackendRoleToUi } from './components/roles.js';
 import { storageGet, storageSet, syncPendingChanges } from './utils/storage.js';
 import { FinancesModule, BanquesModule } from './modules/finances.jsx';
 
@@ -2891,17 +2892,19 @@ function AchatModule({ farmId, storageKey = 'achats-documents', moduleType = 'Cu
       doc.total,
       doc.lignes.map(l => `${l.produit} x${l.quantite} @ ${l.prixUnitaire}`).join(' | '),
     ]);
-    const csv = [header, ...rows].map(line => line.map(value => `"${String(value).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const csv = [header, ...rows].map(line => line.map(celluleCsv).join(',')).join('\n');
     downloadFile(`${storageKey}.csv`, csv, 'text/csv;charset=utf-8;');
   };
 
   const exportPdf = () => {
+    // Toute donnée saisie par un utilisateur passe par escapeHtml : cette fenêtre est de même
+    // origine que l'application (voir src/lib/securite.js).
     const content = docs.map(doc => `
       <tr>
-        <td>${fmtDate(doc.date)}</td>
-        <td>${doc.fournisseurNom}</td>
-        <td>${fmtMoney(doc.total)}</td>
-        <td>${doc.lignes.map(l => `${l.produit} x${l.quantite} — ${fmtMoney(l.prixUnitaire)}`).join('<br />')}</td>
+        <td>${escapeHtml(fmtDate(doc.date))}</td>
+        <td>${escapeHtml(doc.fournisseurNom)}</td>
+        <td>${escapeHtml(fmtMoney(doc.total))}</td>
+        <td>${doc.lignes.map(l => escapeHtml(`${l.produit} x${l.quantite} — ${fmtMoney(l.prixUnitaire)}`)).join('<br />')}</td>
       </tr>
     `).join('');
     // Les couleurs de cette feuille de style restent littérales, et c est voulu : ce document
@@ -4736,11 +4739,24 @@ function ModuleTabButton({ tab, active, onClick }) {
 // project_erp_ux_alignment.md). Mesure la largeur réelle des onglets via une
 // couche invisible avant de décider combien en afficher — même principe que
 // l'implémentation de référence plutôt qu'un seuil de largeur codé en dur.
-function ModuleTabBar({ tabs, activeTab, onSelect }) {
+//
+// Un onglet peut porter `ressources` / `uneParmi` (voir src/lib/restrictions.jsx) : il est alors
+// masqué si le rôle de l'utilisateur n'a pas le droit de consulter ces ressources, et l'onglet
+// actif bascule sur le premier onglet visible s'il vient d'être masqué.
+function ModuleTabBar({ tabs: tousOnglets, activeTab, onSelect }) {
+  const restrictions = useRestrictions();
+  const tabs = tousOnglets.filter(onglet => exigencesSatisfaites(onglet, restrictions));
   const containerRef = useRef(null);
   const measureRef = useRef(null);
   const [visibleCount, setVisibleCount] = useState(tabs.length);
   const [moreOpen, setMoreOpen] = useState(false);
+
+  const premierVisible = tabs[0]?.id;
+  const actifVisible = tabs.some(t => t.id === activeTab);
+  useEffect(() => {
+    if (!actifVisible && premierVisible) onSelect(premierVisible);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [actifVisible, premierVisible]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -5011,6 +5027,7 @@ function ParcellePrecisionSection({ parcelle }) {
 
 function CulturesModule({ farmId, highlightProduitId }) {
   const { t } = useTranslation();
+  const peutLireParcelles = useRestrictions().peutLire('parcelles');
   // Onglet interne repris de l'URL (?onglet=), pour qu'un lien vers un document ouvre le
   // bon onglet et qu'un rechargement y revienne. Même principe que l'onglet de premier
   // niveau dans le shell, une strate plus bas.
@@ -5055,6 +5072,9 @@ function CulturesModule({ farmId, highlightProduitId }) {
   }, [normalizeParcelle]);
 
   useEffect(() => {
+    // Rôle privé de la lecture des parcelles : le module reste accessible pour ses autres
+    // onglets (stocks, registre…), sans interroger une ressource qui serait refusée.
+    if (!peutLireParcelles) { setLoaded(true); return; }
     if (chargementRef.current) return;
     chargementRef.current = true;
     (async () => {
@@ -5075,7 +5095,7 @@ function CulturesModule({ farmId, highlightProduitId }) {
         chargementRef.current = false;
       }
     })();
-  }, [farmId, normalizeParcelle]);
+  }, [farmId, normalizeParcelle, peutLireParcelles]);
 
   const pushHistorique = useCallback(async (entry) => {
     setHistorique(h => [{ id: `local-${Date.now()}`, date: new Date().toISOString(), parcelle: entry.parcelle, action: entry.action }, ...h].slice(0, 40));
@@ -5216,13 +5236,14 @@ function CulturesModule({ farmId, highlightProduitId }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: SPACE.lg }}>
       <ModuleTabBar
         tabs={[
-          { id: 'parcelles', label: t('cultures.tabParcelles'), icon: Sprout },
-          { id: 'carte', label: t('cultures.tabCarte'), icon: Home },
-          { id: 'stocks', label: t('cultures.tabStocks'), icon: Package },
-          { id: 'ventes', label: t('cultures.tabVentes'), icon: TrendingUp },
-          { id: 'achats', label: t('cultures.tabAchats'), icon: ShoppingCart },
-          { id: 'registre', label: t('cultures.tabRegistre'), icon: ClipboardList },
-          { id: 'comptabilite', label: t('cultures.tabComptabilite'), icon: Wallet },
+          // `ressources` : lecture exigée pour afficher l'onglet (voir ModuleTabBar).
+          { id: 'parcelles', label: t('cultures.tabParcelles'), icon: Sprout, ressources: ['parcelles'] },
+          { id: 'carte', label: t('cultures.tabCarte'), icon: Home, ressources: ['parcelles'] },
+          { id: 'stocks', label: t('cultures.tabStocks'), icon: Package, ressources: ['produits'] },
+          { id: 'ventes', label: t('cultures.tabVentes'), icon: TrendingUp, ressources: ['devis'] },
+          { id: 'achats', label: t('cultures.tabAchats'), icon: ShoppingCart, ressources: ['achats'] },
+          { id: 'registre', label: t('cultures.tabRegistre'), icon: ClipboardList, ressources: ['applications_intrants'] },
+          { id: 'comptabilite', label: t('cultures.tabComptabilite'), icon: Wallet, ressources: ['devis', 'achats'] },
         ]}
         activeTab={tab}
         onSelect={setTab}
@@ -5406,13 +5427,14 @@ function PoulaillerModule({ farmId, highlightProduitId }) {
     if (highlightProduitId) setTab('stocks');
   }, [highlightProduitId]);
   const tabs = [
-    { id: 'environnement', label: t('poulailler.tabAmbiance'), icon: Thermometer },
-    { id: 'suivi', label: t('poulailler.tabSuivi'), icon: ClipboardList },
-    { id: 'stocks', label: t('poulailler.tabStocks'), icon: Package },
-    { id: 'ventes', label: t('poulailler.tabVentes'), icon: TrendingUp },
-    { id: 'achats', label: t('poulailler.tabAchats'), icon: ShoppingCart },
-    { id: 'livraisons', label: t('poulailler.tabLivraisons'), icon: Truck },
-    { id: 'comptabilite', label: t('poulailler.tabComptabilite'), icon: Wallet },
+    // `ressources` : lecture exigée pour afficher l'onglet (voir ModuleTabBar).
+    { id: 'environnement', label: t('poulailler.tabAmbiance'), icon: Thermometer, ressources: ['poulailler'] },
+    { id: 'suivi', label: t('poulailler.tabSuivi'), icon: ClipboardList, ressources: ['poulailler'] },
+    { id: 'stocks', label: t('poulailler.tabStocks'), icon: Package, ressources: ['produits'] },
+    { id: 'ventes', label: t('poulailler.tabVentes'), icon: TrendingUp, ressources: ['devis'] },
+    { id: 'achats', label: t('poulailler.tabAchats'), icon: ShoppingCart, ressources: ['achats'] },
+    { id: 'livraisons', label: t('poulailler.tabLivraisons'), icon: Truck, ressources: ['poulailler'] },
+    { id: 'comptabilite', label: t('poulailler.tabComptabilite'), icon: Wallet, ressources: ['devis', 'achats'] },
   ];
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: SPACE.lg }}>
@@ -5447,13 +5469,13 @@ function PiscicultureModule({ farmId, highlightProduitId }) {
     if (highlightProduitId) setTab('stocks');
   }, [highlightProduitId]);
   const tabs = [
-    { id: 'environnement', label: t('pisciculture.tabBassins'), icon: Droplet },
-    { id: 'suivi', label: t('pisciculture.tabSuivi'), icon: ClipboardList },
-    { id: 'stocks', label: t('pisciculture.tabStocks'), icon: Package },
-    { id: 'ventes', label: t('pisciculture.tabVentes'), icon: TrendingUp },
-    { id: 'achats', label: t('pisciculture.tabAchats'), icon: ShoppingCart },
-    { id: 'livraisons', label: t('pisciculture.tabLivraisons'), icon: Truck },
-    { id: 'comptabilite', label: t('pisciculture.tabComptabilite'), icon: Wallet },
+    { id: 'environnement', label: t('pisciculture.tabBassins'), icon: Droplet, ressources: ['pisciculture'] },
+    { id: 'suivi', label: t('pisciculture.tabSuivi'), icon: ClipboardList, ressources: ['pisciculture'] },
+    { id: 'stocks', label: t('pisciculture.tabStocks'), icon: Package, ressources: ['produits'] },
+    { id: 'ventes', label: t('pisciculture.tabVentes'), icon: TrendingUp, ressources: ['devis'] },
+    { id: 'achats', label: t('pisciculture.tabAchats'), icon: ShoppingCart, ressources: ['achats'] },
+    { id: 'livraisons', label: t('pisciculture.tabLivraisons'), icon: Truck, ressources: ['pisciculture'] },
+    { id: 'comptabilite', label: t('pisciculture.tabComptabilite'), icon: Wallet, ressources: ['devis', 'achats'] },
   ];
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: SPACE.lg }}>
@@ -5505,6 +5527,12 @@ function LoginScreen({ onAuth, onConfirmerInscription, onRenvoyerCodeInscription
     setError('');
     if (mode === 'register' && password !== confirmPassword) {
       setError(t('auth.passwordMismatch'));
+      return;
+    }
+    // Même règle que le serveur (server/src/utils/motDePasse.js) : retour immédiat plutôt
+    // qu'un aller-retour réseau pour une erreur connue d'avance.
+    if (mode === 'register' && (password.length < 8 || !/[A-Za-zÀ-ÿ]/.test(password) || !/\d/.test(password))) {
+      setError(t('auth.passwordRule'));
       return;
     }
     setBusy(true);
@@ -5732,9 +5760,9 @@ function LoginScreen({ onAuth, onConfirmerInscription, onRenvoyerCodeInscription
 
           <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: SPACE.md }}>
             <Field label={t('auth.email')} type="email" placeholder={t('auth.emailPlaceholder')} value={email} onChange={e => setEmail(e.target.value)} required />
-            <Field label={t('auth.password')} type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required minLength={mode === 'register' ? 6 : undefined} />
+            <Field label={t('auth.password')} type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required minLength={mode === 'register' ? 8 : undefined} autoComplete={mode === 'register' ? 'new-password' : 'current-password'} title={mode === 'register' ? t('auth.passwordRule') : undefined} />
             {mode === 'register' && (
-              <Field label={t('auth.confirmPassword')} type="password" placeholder="••••••••" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required minLength={6} />
+              <Field label={t('auth.confirmPassword')} type="password" placeholder="••••••••" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required minLength={8} autoComplete="new-password" />
             )}
             {mode === 'register' && (
               <Field
@@ -6777,7 +6805,9 @@ function ReportsModule({ farmId, activated }) {
     // beige à l écran, n a pas cours ici.
     const printWindow = window.open('', '_blank', 'width=900,height=1000');
     if (!printWindow) return;
-    const row = (cols) => `<tr>${cols.map(c => `<td>${c}</td>`).join('')}</tr>`;
+    // escapeHtml : noms de clients/produits/parcelles saisis par les utilisateurs, injectés dans
+    // une fenêtre de même origine que l'application (voir src/lib/securite.js).
+    const row = (cols) => `<tr>${cols.map(c => `<td>${escapeHtml(c)}</td>`).join('')}</tr>`;
     const rowsVentes = filtered.ventes.map(r => row([fmtDate(r.date), r.partenaire, r.produit, r.quantite, fmtMoney(montantLigneEntreprise(r))])).join('') || `<tr><td colspan="5">${t('reports.noVente')}</td></tr>`;
     const rowsAchats = filtered.achats.map(r => row([fmtDate(r.date), r.partenaire, r.produit, r.quantite, fmtMoney(r.quantite * r.prixUnitaire)])).join('') || `<tr><td colspan="5">${t('reports.noAchat')}</td></tr>`;
     const rowsRecoltes = filtered.recoltes.map(r => row([fmtDate(r.date), r.parcelle, r.culture, `${r.quantite} kg`])).join('') || `<tr><td colspan="4">${t('reports.noRecolte')}</td></tr>`;
@@ -6815,7 +6845,7 @@ function ReportsModule({ farmId, activated }) {
       ...filtered.recoltes.map(r => [t('reports.csvRowRecolte'), r.date, r.parcelle, r.culture, Number(r.quantite) || 0, '']),
     ];
 
-    const csv = rows.map(row => row.map(value => `"${String(value).replace(/"/g, '""')}"`).join(';')).join('\n');
+    const csv = rows.map(row => row.map(celluleCsv).join(';')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -6919,11 +6949,14 @@ function HomeGridTile({ label, icon: Icon, inactive, onClick }) {
 // Combine deux sources : HOME_MODULE_TILES (modules activables, toujours affichés qu'ils soient
 // actifs ou non) + le reste d'availableTabs par catégorie (destinations sans notion
 // d'activation) — les deux fusionnées pour ne jamais afficher un module en double.
-function HomeGrid({ tabs, activated, permissions, onToggle, onSelect }) {
+function HomeGrid({ tabs, activated, onToggle, onSelect }) {
   const { t } = useTranslation();
+  const restrictions = useRestrictions();
   const moduleKeys = new Set(HOME_MODULE_TILES.map(m => m.key));
   const pinned = tabs.filter(tb => !tb.category && tb.id !== 'accueil');
-  const moduleTiles = HOME_MODULE_TILES.filter(m => permissions.includes(m.key));
+  // Même règle que la navbar : une tuile dont l'écran n'est pas consultable par le rôle
+  // n'apparaît pas (la clé de tuile est l'id d'onglet correspondant).
+  const moduleTiles = HOME_MODULE_TILES.filter(m => ongletVisible({ id: m.key }, restrictions));
   const categories = NAV_CATEGORIES
     .map(cat => ({
       ...cat,
@@ -6974,6 +7007,7 @@ function HomeOverview({ farmId, activated }) {
   const { t } = useTranslation();
   const { fmtMoney } = useLocale();
   const navigate = useNavigate();
+  const { peutLire } = useRestrictions();
   const [stats, setStats] = useState({
     chiffreAffaires: 0,
     depenses: 0,
@@ -6990,13 +7024,15 @@ function HomeOverview({ farmId, activated }) {
     try {
       // Charge en parallèle : parcelles, livraisons, stocks, et les transactions financières
       // (source unique de vérité pour les chiffres, alignée sur l'onglet Finances)
+      // Chaque source n'est interrogée que si le rôle peut la consulter : un seul refus 403
+      // faisait échouer tout le Promise.all, et le tableau de bord restait vide.
       const [culturesParcelles, poulaillerLivraisons, stokages, financesData, culturesVentes, poulaillerVentes] = await Promise.all([
-        activated.cultures ? getParcelles() : Promise.resolve({ parcelles: [] }),
-        activated.poulailler ? getPoulaillerLivraisons() : Promise.resolve({ livraisons: [] }),
-        activated.poulailler ? getProduits('Poulailler') : Promise.resolve({ stocks: [] }),
-        getFinances(),
-        activated.cultures ? getCulturesMouvements('vente') : Promise.resolve({ mouvements: [] }),
-        activated.poulailler ? getPoulaillerMouvements('vente') : Promise.resolve({ mouvements: [] }),
+        activated.cultures && peutLire('parcelles') ? getParcelles() : Promise.resolve({ parcelles: [] }),
+        activated.poulailler && peutLire('poulailler') ? getPoulaillerLivraisons() : Promise.resolve({ livraisons: [] }),
+        activated.poulailler && peutLire('produits') ? getProduits('Poulailler') : Promise.resolve({ stocks: [] }),
+        peutLire('finances') ? getFinances() : Promise.resolve({ finances: [] }),
+        activated.cultures && peutLire('cultures_mouvements') ? getCulturesMouvements('vente') : Promise.resolve({ mouvements: [] }),
+        activated.poulailler && peutLire('poulailler') ? getPoulaillerMouvements('vente') : Promise.resolve({ mouvements: [] }),
       ]);
 
       const culturesParcellesList = culturesParcelles.parcelles || [];
@@ -7032,7 +7068,8 @@ function HomeOverview({ farmId, activated }) {
 
       const alertes = [];
       if (parcellesAArroser > 0) alertes.push(t('home.alertPlotsToWater', { count: parcellesAArroser }));
-      if (oeufsDisponibles < 100) alertes.push(t('home.alertLowEggStock', { count: oeufsDisponibles }));
+      // Stock non consultable : aucune alerte « stock bas » déduite d'une liste vide.
+      if (peutLire('produits') && oeufsDisponibles < 100) alertes.push(t('home.alertLowEggStock', { count: oeufsDisponibles }));
       if (livraisonsEnAttente > 0) alertes.push(t('home.alertPendingDeliveries', { count: livraisonsEnAttente }));
       if (benefice < 0) alertes.push(t('home.alertNegativeProfit', { amount: fmtMoney(benefice) }));
 
@@ -7051,17 +7088,20 @@ function HomeOverview({ farmId, activated }) {
     }
   })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [activated, t]);
+}, [activated, t, peutLire]);
+  // Une carte dont la source n'est pas consultable par le rôle est masquée plutôt qu'affichée
+  // à 0 (un chiffre d'affaires « 0 » serait une fausse information, pas une absence d'accès).
+  const finances = peutLire('finances');
   const cards = [
-    { label: t('home.cardRevenue'), value: fmtMoney(stats.chiffreAffaires), icon: Wallet, tone: 'green' },
-    { label: t('home.cardExpenses'), value: fmtMoney(stats.depenses), icon: ShoppingCart, tone: 'red' },
-    { label: t('home.cardProfit'), value: fmtMoney(stats.benefice), icon: TrendingUp, tone: stats.benefice >= 0 ? 'green' : 'red' },
-    { label: t('home.cardSales'), value: stats.ventes, icon: Package, tone: 'blue' },
-    { label: t('home.cardPendingDeliveries'), value: stats.livraisons, icon: Truck, tone: 'ochre' },
-    { label: t('home.cardPlotsToWater'), value: stats.parcelles, icon: Droplet, tone: 'blue' },
-    { label: t('home.cardEggs'), value: stats.oeufs, icon: Egg, tone: 'ochre' },
+    finances && { label: t('home.cardRevenue'), value: fmtMoney(stats.chiffreAffaires), icon: Wallet, tone: 'green' },
+    finances && { label: t('home.cardExpenses'), value: fmtMoney(stats.depenses), icon: ShoppingCart, tone: 'red' },
+    finances && { label: t('home.cardProfit'), value: fmtMoney(stats.benefice), icon: TrendingUp, tone: stats.benefice >= 0 ? 'green' : 'red' },
+    (peutLire('cultures_mouvements') || peutLire('poulailler')) && { label: t('home.cardSales'), value: stats.ventes, icon: Package, tone: 'blue' },
+    peutLire('poulailler') && { label: t('home.cardPendingDeliveries'), value: stats.livraisons, icon: Truck, tone: 'ochre' },
+    peutLire('parcelles') && { label: t('home.cardPlotsToWater'), value: stats.parcelles, icon: Droplet, tone: 'blue' },
+    peutLire('produits') && { label: t('home.cardEggs'), value: stats.oeufs, icon: Egg, tone: 'ochre' },
     { label: t('home.cardAlerts'), value: stats.alertes.length, icon: AlertTriangle, tone: stats.alertes.length > 0 ? 'red' : 'green' },
-  ];
+  ].filter(Boolean);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: SPACE.lg }}>
@@ -7100,7 +7140,7 @@ function HomeOverview({ farmId, activated }) {
 
 const JOURS_SEMAINE = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 
-function EmployeesModule({ farmId, role }) {
+function EmployeesModule({ farmId }) {
   const { t } = useTranslation();
   const { devise } = useLocale();
   const [employees, setEmployees] = useState([]);
@@ -7133,7 +7173,9 @@ function EmployeesModule({ farmId, role }) {
   }), []));
   const [viewMode, setViewMode] = useState('list'); // 'list' | 'grid' (trombinoscope)
   const [showMoreAdd, setShowMoreAdd] = useState(false);
-  const canManageRh = role === 'admin';
+  // Boutons de gestion RH : visibles pour qui peut modifier les salariés (le serveur vérifie
+  // ensuite chaque action, contrats, avances, référentiels… selon sa propre ressource).
+  const canManageRh = useRestrictions().peut('salaries', 'modifier');
 
   const emptyForm = {
     nom: '', prenom: '', posteId: '', departementId: '', managerId: '',
@@ -7469,7 +7511,7 @@ function EmployeesModule({ farmId, role }) {
                       {emp.managerNom && ` · ${t('rh.managerPrefix', { name: emp.managerNom })}`}
                       {emp.telephone && ` · ${emp.telephone}`}
                       {emp.compteEmail && ` · ${t('rh.loginPrefix', { email: emp.compteEmail })}`}
-                      {emp.role && ` · ${t(`role.${emp.role}`, { defaultValue: emp.role })}`}
+                      {emp.roleNom && ` · ${emp.roleNom}`}
                     </div>
                   </div>
                 </div>
@@ -7564,15 +7606,18 @@ function NotificationsModule({ farmId, activated }) {
   const { t } = useTranslation();
   const { fmtMoney } = useLocale();
   const [notifications, setNotifications] = useState([]);
+  const { peutLire } = useRestrictions();
 
   useEffect(() => {
     (async () => {
       try {
+        // Même principe que HomeOverview : on n'interroge que ce que le rôle peut consulter,
+        // sinon un seul 403 vidait toutes les notifications.
         const [parcellesData, stocksData, livraisonsData, devisData] = await Promise.all([
-          activated?.cultures ? getParcelles() : Promise.resolve({ parcelles: [] }),
-          activated?.poulailler ? getProduits('Poulailler') : Promise.resolve({ stocks: [] }),
-          activated?.poulailler ? getPoulaillerLivraisons() : Promise.resolve({ livraisons: [] }),
-          getDevisListe(),
+          activated?.cultures && peutLire('parcelles') ? getParcelles() : Promise.resolve({ parcelles: [] }),
+          activated?.poulailler && peutLire('produits') ? getProduits('Poulailler') : Promise.resolve({ stocks: [] }),
+          activated?.poulailler && peutLire('poulailler') ? getPoulaillerLivraisons() : Promise.resolve({ livraisons: [] }),
+          peutLire('devis') ? getDevisListe() : Promise.resolve({ devis: [] }),
         ]);
 
         const parcelles = parcellesData.parcelles || [];
@@ -7609,7 +7654,7 @@ function NotificationsModule({ farmId, activated }) {
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [farmId, activated, t]);
+  }, [farmId, activated, t, peutLire]);
 
   return (
     <Card style={{ display: 'flex', flexDirection: 'column', gap: SPACE.md }}>
@@ -9080,7 +9125,6 @@ export default function App() {
   const goToScreen = (screenName, tabId) => navigate(screenToPath(screenName, tabId));
   const [isOnboarding, setIsOnboarding] = useState(false);
   const [user, setUser] = useState(null);
-  const [role, setRole] = useState('admin');
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   // Abonnement Phase 1 (2026-09-04) : { status, mode, daysLeft, ... } | null tant que non
   // chargé. `mode` pilote l'affichage (trial/readonly/locked/active) — voir GET /billing/status.
@@ -9195,11 +9239,12 @@ export default function App() {
     }
   };
 
-  // Seuls admin/directeur voient l'assistant "Configurer votre entreprise" ; pour les autres
-  // rôles on ne l'affiche jamais et on ne fait même pas l'appel réseau. L'état vient du serveur
-  // (pas de localStorage) car c'est un fait qui appartient à l'entreprise, pas au navigateur.
-  const checkOnboardingNeeded = async (uiRole) => {
-    if (uiRole !== 'admin' && uiRole !== 'directeur') {
+  // Seul le propriétaire du compte voit l'assistant "Configurer votre entreprise" (avant le
+  // 2026-11-11 : les rôles texte admin/directeur — or tout compte récent porte le texte « admin »,
+  // l'assistant s'ouvrait donc chez chaque salarié). L'état vient du serveur (pas de
+  // localStorage) car c'est un fait qui appartient à l'entreprise, pas au navigateur.
+  const checkOnboardingNeeded = async (estProprietaire) => {
+    if (!estProprietaire) {
       setIsOnboarding(false);
       return;
     }
@@ -9247,18 +9292,70 @@ export default function App() {
     }
   };
 
+  // Restrictions du rôle d'entreprise de l'utilisateur connecté (GET /api/roles/mes-restrictions).
+  // Depuis le 2026-11-11, c'est la SEULE source des droits côté interface (le rôle texte du
+  // jeton n'est plus lu) : onglets visibles, boutons de gestion, écran « Gérer les options »,
+  // assistant de configuration. Pur confort d'affichage — le serveur refuse de toute façon.
+  // Lues à la connexion et à la restauration de session, puis relues au retour sur l'onglet du
+  // navigateur et dès qu'un appel est refusé pour restriction (le rôle a pu changer).
+  const [mesRestrictions, setMesRestrictions] = useState(null);
+  // Vrai dès la première tentative de lecture terminée (succès OU échec : un échec laisse tout
+  // affiché, le serveur restant la barrière — on ne bloque jamais l'interface là-dessus).
+  const [restrictionsPretes, setRestrictionsPretes] = useState(false);
+  // Renvoie les restrictions lues (ou null en cas d'échec), pour que la connexion puisse décider
+  // de l'écran d'arrivée sans attendre un nouveau rendu.
+  const rafraichirRestrictions = useCallback(async () => {
+    if (!getToken()) { setMesRestrictions(null); return null; }
+    try {
+      const lues = await getMesRestrictions();
+      // Même contenu → même objet : sinon chaque relecture (retour sur l'onglet, 403) recréait
+      // le vérificateur et relançait les chargements de tous les écrans qui en dépendent.
+      setMesRestrictions(prec => (JSON.stringify(prec) === JSON.stringify(lues) ? prec : lues));
+      return lues;
+    } catch (err) {
+      console.error('[mes-restrictions]', err);
+      return null;
+    } finally {
+      setRestrictionsPretes(true);
+    }
+  }, []);
+  useEffect(() => {
+    // Déconnexion : on oublie les restrictions (le chargement, lui, est fait explicitement par
+    // finalizeAuth et la restauration de session).
+    if (!user) { setMesRestrictions(null); setRestrictionsPretes(false); }
+  }, [user]);
+  useEffect(() => {
+    const relire = () => { if (getToken()) rafraichirRestrictions(); };
+    window.addEventListener('agri-restrictions-changed', relire);
+    window.addEventListener('focus', relire);
+    return () => {
+      window.removeEventListener('agri-restrictions-changed', relire);
+      window.removeEventListener('focus', relire);
+    };
+  }, [rafraichirRestrictions]);
+  const verificateurRestrictions = useMemo(() => creerVerificateur(mesRestrictions), [mesRestrictions]);
+  // Basé sur le jeton et non sur `user` : à la restauration de session (rechargement de page),
+  // `user` reste null le temps de GET /auth/me alors que l'écran demandé s'affiche déjà.
+  const enAttenteRestrictions = Boolean(getToken()) && !restrictionsPretes;
+  // Libellé affiché dans le menu utilisateur : le rôle DÉFINI PAR L'ENTREPRISE (et non plus
+  // l'ancien rôle texte, « Administrateur » sur tous les comptes récents).
+  const libelleRole = mesRestrictions?.proprietaire
+    ? t('role.proprietaire')
+    : (mesRestrictions?.roleNom || t('role.sansRole'));
+
+  // « Gérer les options » (écran des modules) : ouvert à qui peut modifier les modules activés.
+  const peutGererModules = (restrictions) => creerVerificateur(restrictions).peut('modules_actifs', 'modifier');
+
   const finalizeAuth = async (authResult) => {
     setToken(authResult.token);
-    const uiRole = mapBackendRoleToUi(authResult.user.role);
-    const selectedConfig = ROLE_DEFINITIONS[uiRole] || ROLE_DEFINITIONS.admin;
+    const restrictions = await rafraichirRestrictions();
     setUser(authResult.user.email);
-    setRole(uiRole);
     setIsPlatformAdmin(authResult.user.isPlatformAdmin === true);
     applyEntrepriseLocale(authResult.entreprise);
     refreshBillingStatus();
-    await checkOnboardingNeeded(uiRole);
+    await checkOnboardingNeeded(restrictions?.proprietaire === true);
     await refreshModulesActifs();
-    goToScreen(selectedConfig.permissions.includes('modules') ? 'modules' : 'dashboard');
+    goToScreen(peutGererModules(restrictions) ? 'modules' : 'dashboard');
     return authResult;
   };
 
@@ -9341,38 +9438,43 @@ export default function App() {
     goToDashboard();
   };
 
-  const roleConfig = ROLE_DEFINITIONS[role] || ROLE_DEFINITIONS.admin;
+  // Depuis le 2026-11-11, aucun filtre par rôle texte : un écran est visible si son module est
+  // activé et si le rôle d'entreprise de l'utilisateur peut le consulter (filtre ongletVisible
+  // ci-dessous, voir RESSOURCES_ONGLETS dans src/lib/restrictions.jsx).
   // `category` ne pilote encore aucun affichage (pas de sidebar/groupement pour l'instant) —
   // préparation de données pour une future navigation groupée, sans changement visuel aujourd'hui.
   const availableTabs = [
-    roleConfig.permissions.includes('home') && { id: 'accueil', label: t('nav.accueil'), icon: Home, category: null },
-    roleConfig.permissions.includes('calendar') && { id: 'calendar', label: t('nav.calendar'), icon: CalendarDays, category: 'operations' },
-    roleConfig.permissions.includes('recoltes') && { id: 'recoltes', label: t('nav.recoltes'), icon: Package, category: 'operations' },
-    roleConfig.permissions.includes('assistant') && { id: 'assistant', label: t('nav.assistant'), icon: Search, category: 'analyse' },
-    roleConfig.permissions.includes('assistant') && { id: 'forecasting', label: t('nav.forecasting'), icon: TrendingUp, category: 'analyse' },
-    roleConfig.permissions.includes('reports') && { id: 'reports', label: t('nav.reports'), icon: FileText, category: 'analyse' },
-    roleConfig.permissions.includes('home') && { id: 'tableaubord', label: t('nav.tableaubord'), icon: BarChart3, category: 'analyse' },
-    activated.cultures && roleConfig.permissions.includes('cultures') && { id: 'cultures', label: t('nav.cultures'), icon: Sprout, category: 'operations' },
-    activated.poulailler && roleConfig.permissions.includes('poulailler') && { id: 'poulailler', label: t('nav.poulailler'), icon: Egg, category: 'operations' },
-    activated.pisciculture && roleConfig.permissions.includes('pisciculture') && { id: 'pisciculture', label: t('nav.pisciculture'), icon: Fish, category: 'operations' },
-    activated.clients && roleConfig.permissions.includes('clients') && { id: 'clients', label: t('nav.clients'), icon: Users, category: 'commercial' },
-    activated.fournisseurs && roleConfig.permissions.includes('fournisseurs') && { id: 'fournisseurs', label: t('nav.fournisseurs'), icon: Truck, category: 'commercial' },
-    activated.employees && roleConfig.permissions.includes('employees') && { id: 'employees', label: t('nav.employees'), icon: Briefcase, category: 'rh' },
+    { id: 'accueil', label: t('nav.accueil'), icon: Home, category: null },
+    { id: 'calendar', label: t('nav.calendar'), icon: CalendarDays, category: 'operations' },
+    { id: 'recoltes', label: t('nav.recoltes'), icon: Package, category: 'operations' },
+    { id: 'assistant', label: t('nav.assistant'), icon: Search, category: 'analyse' },
+    { id: 'forecasting', label: t('nav.forecasting'), icon: TrendingUp, category: 'analyse' },
+    { id: 'reports', label: t('nav.reports'), icon: FileText, category: 'analyse' },
+    { id: 'tableaubord', label: t('nav.tableaubord'), icon: BarChart3, category: 'analyse' },
+    activated.cultures && { id: 'cultures', label: t('nav.cultures'), icon: Sprout, category: 'operations' },
+    activated.poulailler && { id: 'poulailler', label: t('nav.poulailler'), icon: Egg, category: 'operations' },
+    activated.pisciculture && { id: 'pisciculture', label: t('nav.pisciculture'), icon: Fish, category: 'operations' },
+    activated.clients && { id: 'clients', label: t('nav.clients'), icon: Users, category: 'commercial' },
+    activated.fournisseurs && { id: 'fournisseurs', label: t('nav.fournisseurs'), icon: Truck, category: 'commercial' },
+    activated.employees && { id: 'employees', label: t('nav.employees'), icon: Briefcase, category: 'rh' },
     { id: 'monrh', label: t('nav.monrh'), icon: ClipboardList, category: 'rh' },
-    activated.finances && roleConfig.permissions.includes('finances') && { id: 'finances', label: t('nav.finances'), icon: Landmark, category: 'finance' },
-    activated.finances && roleConfig.permissions.includes('finances') && { id: 'factures', label: t('nav.factures'), icon: FileText, category: 'finance' },
-    activated.notifications && roleConfig.permissions.includes('notifications') && { id: 'notifications', label: t('nav.notifications'), icon: Bell, category: 'operations' },
+    activated.finances && { id: 'finances', label: t('nav.finances'), icon: Landmark, category: 'finance' },
+    activated.finances && { id: 'factures', label: t('nav.factures'), icon: FileText, category: 'finance' },
+    activated.notifications && { id: 'notifications', label: t('nav.notifications'), icon: Bell, category: 'operations' },
     { id: 'observations', label: t('nav.observations'), icon: ClipboardList, category: 'operations' },
     { id: 'meteo', label: t('nav.meteo'), icon: Cloud, category: 'operations' },
     { id: 'surveillance', label: t('nav.surveillance'), icon: Video, category: 'operations' },
-    roleConfig.permissions.includes('equipements') && { id: 'equipements', label: t('nav.equipements'), icon: Wrench, category: 'operations' },
+    { id: 'equipements', label: t('nav.equipements'), icon: Wrench, category: 'operations' },
     { id: 'feedback', label: t('nav.feedback'), icon: MessageSquare, category: null },
     { id: 'aide', label: t('nav.aide'), icon: HelpCircle, category: null },
     // Outil interne : contrairement à Feedback (tab toujours visible, contenu conditionnel),
     // le tab lui-même n'a aucune raison d'apparaître pour un utilisateur normal.
     isPlatformAdmin && { id: 'billing', label: t('nav.billing'), icon: Landmark, category: null },
     { id: 'profil', label: t('nav.profil'), icon: Settings, category: null },
-  ].filter(Boolean);
+  ].filter(Boolean)
+    // Écrans dont la lecture est retirée par le rôle (voir RESSOURCES_ONGLETS). L'effet
+    // ci-dessous renvoie vers l'accueil si l'écran courant disparaît ainsi.
+    .filter((onglet) => ongletVisible(onglet, verificateurRestrictions));
 
   useEffect(() => {
     // initLoaded : sans cette garde, le premier rendu a `activated` encore à ses
@@ -9398,16 +9500,14 @@ export default function App() {
       if (!token) return;
       try {
         const { user, entreprise } = await getMe();
-        const uiRole = mapBackendRoleToUi(user.role);
-        const selectedConfig = ROLE_DEFINITIONS[uiRole] || ROLE_DEFINITIONS.admin;
+        const restrictions = await rafraichirRestrictions();
         setUser(user.email);
-        setRole(uiRole);
         setIsPlatformAdmin(user.isPlatformAdmin === true);
         applyEntrepriseLocale(entreprise);
         refreshBillingStatus();
-        await checkOnboardingNeeded(uiRole);
+        await checkOnboardingNeeded(restrictions?.proprietaire === true);
         await refreshModulesActifs();
-        const hasModulesAccess = selectedConfig.permissions.includes('modules');
+        const hasModulesAccess = peutGererModules(restrictions);
         const currentScreen = pathnameToScreen(location.pathname);
         if (currentScreen === 'login') {
           goToScreen(hasModulesAccess ? 'modules' : 'dashboard', 'accueil');
@@ -9422,6 +9522,7 @@ export default function App() {
   }, []);
 
   return (
+    <RestrictionsContext.Provider value={verificateurRestrictions}>
     <div className="app-shell" style={{ fontFamily: "'Inter', sans-serif", background: COLORS.bg, minHeight: '100svh', color: COLORS.ink }}>
       <ToastContainer />
       <style>{`
@@ -9461,11 +9562,11 @@ export default function App() {
             onSelect={(id) => navigate(`/app/${id}`)}
             screen={screen}
             user={user}
-            roleLabel={t(`role.${role}`, roleConfig.label)}
-            showManageOptions={roleConfig.permissions.includes('modules')}
+            roleLabel={libelleRole}
+            showManageOptions={verificateurRestrictions.peut('modules_actifs', 'modifier')}
             onManageOptions={() => { setIsOnboarding(false); goToScreen('modules'); }}
             onSearch={() => setSearchOpen(true)}
-            onLogout={() => { clearToken(); navigate('/login'); setUser(null); setRole('admin'); setIsPlatformAdmin(false); }}
+            onLogout={() => { clearToken(); navigate('/login'); setUser(null); setIsPlatformAdmin(false); }}
             isOnline={isOnline}
             pendingSyncCount={pendingSyncCount}
             lastSync={lastSync}
@@ -9487,7 +9588,7 @@ export default function App() {
       {screen !== 'login' && billing?.mode === 'locked' && (
         <AbonnementBloque
           billing={billing}
-          onLogout={() => { clearToken(); navigate('/login'); setUser(null); setRole('admin'); setIsPlatformAdmin(false); setBilling(null); }}
+          onLogout={() => { clearToken(); navigate('/login'); setUser(null); setIsPlatformAdmin(false); setBilling(null); }}
         />
       )}
 
@@ -9563,14 +9664,22 @@ export default function App() {
   </div>
 )}
 
-      {screen === 'dashboard' && (
+      {screen === 'dashboard' && enAttenteRestrictions && (
+        // Contenu retenu le temps de lire les restrictions (une requête) : sinon un écran masqué
+        // ouvert par URL directe s'affichait un instant et ses appels partaient en 403.
+        <div style={{ color: COLORS.inkSoft, padding: SPACE.xl }}><Loader2 size={16} className="spin" /></div>
+      )}
+
+      {/* Seul un onglet présent dans availableTabs est rendu : un écran masqué demandé par URL
+          directe ne monte plus (ses appels partaient en 403) avant la redirection vers l'accueil. */}
+      {screen === 'dashboard' && !enAttenteRestrictions && availableTabs.some(o => o.id === tab) && (
         <div className="dashboard-shell" style={{ padding: '20px 22px 34px' }}>
           {/* Les modules d onglets sont chargés à la demande : un seul Suspense ici suffit,
               chaque onglet n en rend qu un à la fois. */}
           <Suspense fallback={<div style={{ color: COLORS.inkSoft, padding: SPACE.xl }}><Loader2 size={16} className="spin" /></div>}>
             {tab === 'accueil' && (
               <HomeGrid
-                tabs={availableTabs} activated={activated} permissions={roleConfig.permissions}
+                tabs={availableTabs} activated={activated}
                 onToggle={toggleModule} onSelect={(id) => navigate(`/app/${id}`)}
               />
             )}
@@ -9600,19 +9709,19 @@ export default function App() {
             )}
             {tab === 'clients' && <ContactsTab type="client" highlightId={highlightContactId || highlightFromUrl} />}
             {tab === 'fournisseurs' && <ContactsTab type="fournisseur" highlightId={highlightContactId || highlightFromUrl} />}
-            {tab === 'employees' && <EmployeesModule farmId={user} role={role} />}
+            {tab === 'employees' && <EmployeesModule farmId={user} />}
             {tab === 'monrh' && <MonEspaceRh />}
-            {tab === 'finances' && <FinancesModule farmId={user} role={role} />}
+            {tab === 'finances' && <FinancesModule farmId={user} />}
             {tab === 'factures' && <FacturesModule />}
             {tab === 'notifications' && <NotificationsModule farmId={user} activated={activated} />}
             {tab === 'observations' && <ObservationListView />}
             {tab === 'meteo' && <MeteoModule />}
-            {tab === 'surveillance' && <SurveillanceModule canManage={['admin', 'directeur'].includes(role)} />}
-            {tab === 'equipements' && <EquipementsModule canManage={['admin', 'directeur', 'gestionnaire'].includes(role)} />}
+            {tab === 'surveillance' && <SurveillanceModule canManage={verificateurRestrictions.peut('cameras', 'creer')} />}
+            {tab === 'equipements' && <EquipementsModule canManage={verificateurRestrictions.peut('equipements', 'creer')} />}
             {tab === 'feedback' && <FeedbackModule isPlatformAdmin={isPlatformAdmin} />}
             {tab === 'billing' && isPlatformAdmin && <BillingAdminPanel />}
             {tab === 'aide' && <HelpModule />}
-            {tab === 'profil' && <ProfilModule farmId={user} role={role} />}
+            {tab === 'profil' && <ProfilModule farmId={user} />}
           </Suspense>
         </div>
       )}
@@ -9625,11 +9734,14 @@ export default function App() {
         </Suspense>
       )}
     </div>
+    </RestrictionsContext.Provider>
   );
 }
 
-function ProfilModule({ role }) {
- const isAdmin = role === 'admin';
+function ProfilModule() {
+ // Fiche entreprise, devise/locale/fuseau et localisation météo sont des données de l'entreprise :
+ // modifiables par qui en a le droit (restriction entreprise/modifier), plus par le rôle texte.
+ const isAdmin = useRestrictions().peut('entreprise', 'modifier');
   const { t, i18n } = useTranslation();
   const { devise, locale, fuseau, setLocaleConfig } = useLocale();
   const [prefDevise, setPrefDevise] = useState(devise);
@@ -9751,6 +9863,7 @@ function ProfilModule({ role }) {
   const [sentTo, setSentTo] = useState('');
   const [mfaMode, setMfaMode] = useState(null);             // étape d'activation en cours : 'totp' | 'email'
   const [chosenMethod, setChosenMethod] = useState('totp'); // méthode retenue avant de lancer l'activation
+  const [disablePassword, setDisablePassword] = useState(''); // exigé par le serveur pour désactiver la 2FA
 
   useEffect(() => {
     getMe().then(data => {
@@ -9812,12 +9925,18 @@ function ProfilModule({ role }) {
     }
   };
 
-  const handleDisable = async () => {
+  const handleDisable = async (e) => {
+    e?.preventDefault();
+    if (!disablePassword) {
+      setError(t('profil.mfaDisablePasswordRequired'));
+      return;
+    }
     setBusy(true);
     setError('');
     setSuccess('');
     try {
-      await disableMfa();
+      await disableMfa(disablePassword);
+      setDisablePassword('');
       setMfaEnabled(false);
       setMfaMethod('totp');
       setChosenMethod('totp');
@@ -10039,9 +10158,18 @@ function ProfilModule({ role }) {
             <div style={{ fontSize: TEXT.base, color: COLORS.inkSoft }}>
               {t('profil.mfaMethodActive', { method: methodLabels[mfaMethod] || mfaMethod })}
             </div>
-            <Button variant="ghost" onClick={handleDisable} disabled={busy} style={{ alignSelf: 'flex-start' }}>
-              {busy ? <Loader2 size={15} className="spin" /> : null} {t('profil.mfaDisable')}
-            </Button>
+            <form onSubmit={handleDisable} style={{ display: 'flex', flexDirection: 'column', gap: SPACE.sm }}>
+              <Field
+                label={t('profil.mfaDisablePassword')}
+                type="password"
+                autoComplete="current-password"
+                value={disablePassword}
+                onChange={(e) => setDisablePassword(e.target.value)}
+              />
+              <Button type="submit" variant="ghost" disabled={busy || !disablePassword} style={{ alignSelf: 'flex-start' }}>
+                {busy ? <Loader2 size={15} className="spin" /> : null} {t('profil.mfaDisable')}
+              </Button>
+            </form>
           </div>
         )}
       </Card>

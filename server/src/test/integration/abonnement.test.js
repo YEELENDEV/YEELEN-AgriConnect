@@ -2,7 +2,7 @@
 // limite d'inscriptions par IP. Lot 2 : garde-fou d'accès (subscriptionGuard/evaluerAcces).
 // Lot 3 : administration (/api/billing/entreprises*) + reCAPTCHA v3 sur l'inscription.
 // Voir docs/spec-abonnement-phase1.md.
-import { app, pool, request, registerEntreprise, uniqueEmail, createProduit, setEntrepriseSubscription, createEmployeeLogin } from './helpers.js';
+import { app, pool, request, registerEntreprise, uniqueEmail, createProduit, setEntrepriseSubscription, createEmployeeLogin, restreindreEcritures } from './helpers.js';
 import { evaluerAcces } from '../../middleware/subscriptionGuard.js';
 
 afterAll(async () => { await pool.end(); });
@@ -447,6 +447,7 @@ describe('Tarification par module (2026-09-06)', () => {
   test('PUT /entreprise/modules refuse un rôle ouvrier (403), GET reste ouvert', async () => {
     const admin = await registerEntreprise();
     const ouvrier = await createEmployeeLogin(admin.token, 'ouvrier');
+    await restreindreEcritures(admin.entrepriseId, ouvrier.email, ['modules_actifs']);
     const getOuvrier = await request(app).get('/api/entreprise/modules').set('Authorization', `Bearer ${ouvrier.token}`);
     expect(getOuvrier.status).toBe(200);
     const putOuvrier = await request(app).put('/api/entreprise/modules')

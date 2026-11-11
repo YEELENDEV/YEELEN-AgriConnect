@@ -4,7 +4,10 @@
 // (projection équirectangulaire, valable pour la petite échelle d'un champ). Créé une seule
 // fois par parcelle et mis en cache dans parcelles.agro_polygon_id — voir routes/cultures.js
 // (PUT /parcelles/:id) pour l'invalidation quand la localisation/superficie change.
-const POLYGONS_URL = 'http://api.agromonitoring.com/agro/1.0/polygons';
+import { DELAI_API_EXTERNE_MS } from '../config/env.js';
+
+// HTTPS obligatoire : la clé AGRO_API_KEY voyage dans l'URL (paramètre appid).
+const POLYGONS_URL = 'https://api.agromonitoring.com/agro/1.0/polygons';
 const KM_PAR_DEGRE_LAT = 111.32;
 const SUPERFICIE_MIN_HA = 1;
 const SUPERFICIE_MAX_HA = 3000;
@@ -42,8 +45,9 @@ export async function creerPolygone({ nom, latitude, longitude, superficieHa, ap
   const coordinates = anneau?.length
     ? [anneau]
     : [construirePolygoneCarre(latitude, longitude, superficieHa)];
-  const response = await fetch(`${POLYGONS_URL}?appid=${appid}`, {
+  const response = await fetch(`${POLYGONS_URL}?appid=${encodeURIComponent(appid)}`, {
     method: 'POST',
+    signal: AbortSignal.timeout(DELAI_API_EXTERNE_MS),
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       name: nom,
@@ -60,7 +64,9 @@ export async function creerPolygone({ nom, latitude, longitude, superficieHa, ap
 export async function supprimerPolygone(polyid, appid) {
   if (!polyid || !appid) return;
   try {
-    await fetch(`${POLYGONS_URL}/${polyid}?appid=${appid}`, { method: 'DELETE' });
+    await fetch(`${POLYGONS_URL}/${encodeURIComponent(polyid)}?appid=${encodeURIComponent(appid)}`, {
+      method: 'DELETE', signal: AbortSignal.timeout(DELAI_API_EXTERNE_MS),
+    });
   } catch (err) {
     console.error('[agroPolygon] suppression best-effort échouée', err.message);
   }

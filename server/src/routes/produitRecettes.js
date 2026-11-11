@@ -5,7 +5,6 @@
 // consommera/produira réellement le stock à partir de ces recettes.
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';
-import { requireRole } from '../middleware/requireRole.js';
 import { pool } from '../db.js';
 
 const router = express.Router();
@@ -47,7 +46,7 @@ router.get('/', authRequired, async (req, res) => {
   }
 });
 
-router.post('/', authRequired, requireRole('admin', 'directeur'), async (req, res) => {
+router.post('/', authRequired, async (req, res) => {
   const { produitSortieId, nom, quantiteProduite, notes } = req.body;
   if (!produitSortieId || !nom || !nom.trim()) {
     return res.status(400).json({ error: 'produitSortieId et nom sont requis.' });
@@ -78,7 +77,7 @@ router.post('/', authRequired, requireRole('admin', 'directeur'), async (req, re
   }
 });
 
-router.put('/:id', authRequired, requireRole('admin', 'directeur'), async (req, res) => {
+router.put('/:id', authRequired, async (req, res) => {
   const { produitSortieId, nom, quantiteProduite, notes } = req.body;
   try {
     let produitSortieValide = null;
@@ -119,7 +118,7 @@ router.put('/:id', authRequired, requireRole('admin', 'directeur'), async (req, 
   }
 });
 
-router.delete('/:id', authRequired, requireRole('admin', 'directeur'), async (req, res) => {
+router.delete('/:id', authRequired, async (req, res) => {
   try {
     const result = await pool.query(
       'DELETE FROM produit_recettes WHERE id = $1 AND entreprise_id = $2 RETURNING id',
@@ -158,7 +157,7 @@ router.get('/:id/lignes', authRequired, async (req, res) => {
   }
 });
 
-router.post('/:id/lignes', authRequired, requireRole('admin', 'directeur'), async (req, res) => {
+router.post('/:id/lignes', authRequired, async (req, res) => {
   const { produitId, quantite, notes } = req.body;
   if (!produitId || quantite == null || quantite === '') {
     return res.status(400).json({ error: 'produitId et quantite sont requis.' });
@@ -198,7 +197,7 @@ router.post('/:id/lignes', authRequired, requireRole('admin', 'directeur'), asyn
 
 // Jointure (USING) vers produit_recettes pour vérifier le cloisonnement par entreprise en une
 // seule requête — même idiome que DELETE /listes-prix/lignes/:id.
-router.delete('/lignes/:ligneId', authRequired, requireRole('admin', 'directeur'), async (req, res) => {
+router.delete('/lignes/:ligneId', authRequired, async (req, res) => {
   try {
     const result = await pool.query(
       `DELETE FROM produit_recettes_lignes l

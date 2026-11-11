@@ -1,6 +1,5 @@
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';
-import { requireRole } from '../middleware/requireRole.js';
 import { pool } from '../db.js';
 
 const router = express.Router();
@@ -35,7 +34,7 @@ router.get('/finances', authRequired, async (req, res) => {
 // Crée une nouvelle transaction. Si categorie === 'Banque', banqueId est requis
 // pour savoir sur quel compte précis l'opération a eu lieu.
 // Réservé à admin/directeur : seule la direction peut engager une écriture financière manuelle.
-router.post('/finances', authRequired, requireRole('admin', 'directeur'), async (req, res) => {
+router.post('/finances', authRequired, async (req, res) => {
   const { categorie = 'Caisse', montant, description = '', banqueId } = req.body;
 
   if (montant === undefined || montant === null) {
@@ -60,7 +59,7 @@ router.post('/finances', authRequired, requireRole('admin', 'directeur'), async 
 });
 
 // Réservé à admin/directeur : seule la direction peut supprimer une écriture financière.
-router.delete('/finances/:id', authRequired, requireRole('admin', 'directeur'), async (req, res) => {
+router.delete('/finances/:id', authRequired, async (req, res) => {
   try {
     const result = await pool.query('DELETE FROM finances WHERE id = $1 AND entreprise_id = $2', [req.params.id, req.user.entrepriseId]);
     // 0 ligne = id inexistant ou d'une autre entreprise → 404, cohérent avec le reste des routes DELETE.

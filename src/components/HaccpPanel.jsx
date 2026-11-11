@@ -4,6 +4,7 @@ import { Plus, Trash2, ChevronDown, ChevronRight, Download, AlertTriangle } from
 import { getOrdresTransformation, getHaccpControles, createHaccpControle, deleteHaccpControle } from '../lib/api.js';
 import { Card, Button, Field, Select, DataTable, notifyError, notifySuccess } from './ui.jsx';
 import { COLORS, TEXT, SPACE } from '../lib/theme.js';
+import { celluleCsv } from '../lib/securite.js';
 
 const TYPES_CONTROLE = ['temperature', 'hygiene', 'tracabilite', 'autre'];
 
@@ -103,7 +104,7 @@ export default function HaccpPanel({ module, ouvertParDefaut }) {
         c.conforme ? t('haccp.oui') : t('haccp.non'), c.actionCorrective || '', c.operateur || '', c.notes || '',
       ]),
     ];
-    const csv = rows.map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(';')).join('\n');
+    const csv = rows.map((row) => row.map(celluleCsv).join(';')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');

@@ -1,4 +1,4 @@
-import { app, pool, request, registerEntreprise, createClient, createEmployeeLogin } from './helpers.js';
+import { app, pool, request, registerEntreprise, createClient, createEmployeeLogin, restreindreEcritures } from './helpers.js';
 
 afterAll(async () => { await pool.end(); });
 
@@ -161,6 +161,7 @@ describe('Factures (account.move) — cycle de vie + double-partie + lettrage', 
 
   test('écritures réservées admin/directeur ; lecture ouverte', async () => {
     const ouvrier = await createEmployeeLogin(admin.token, 'ouvrier');
+    await restreindreEcritures(admin.entrepriseId, ouvrier.email, ['factures']);
     expect((await request(app).get('/api/factures').set(bearer(ouvrier.token))).status).toBe(200);
     const { body: { facture } } = await creerBrouillon([{ name: 'W', quantity: 1, priceUnit: 100 }]);
     expect((await request(app).post(`/api/factures/${facture.id}/post`).set(bearer(ouvrier.token)).send({})).status).toBe(403);

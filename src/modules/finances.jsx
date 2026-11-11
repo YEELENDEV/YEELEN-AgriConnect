@@ -4,6 +4,7 @@ import { Loader2, Plus, Trash2, AlertTriangle } from 'lucide-react';
 import { Badge, Button, Card, Field, MiniChart, Select } from '../components/ui.jsx';
 import { notifySuccess } from '../components/ui.jsx';
 import { useLocale } from '../lib/locale.jsx';
+import { useRestrictions } from '../lib/restrictions.jsx';
 import {
   createFinance,
   deleteFinance,
@@ -20,10 +21,12 @@ import { COLORS, RADIUS, TEXT, SPACE } from '../lib/theme.js';
 // de jetons et un fond beige légèrement différent). Elle est remplacée par la palette
 // partagée : voir src/lib/theme.js.
 
-export function FinancesModule({ role }) {
+export function FinancesModule() {
   const { t } = useTranslation();
   const { fmtMoney, fmtDate, devise } = useLocale();
-  const isAdmin = role === 'admin';
+  // Choix du compte bancaire principal : réservé à qui peut modifier les banques (restriction
+  // posée par l'entreprise), et non plus au rôle texte « admin » que portent tous les comptes.
+  const isAdmin = useRestrictions().peut('banques', 'modifier');
   const catLabel = (c) => t(`finances.categorieLabels.${c}`, { defaultValue: c });
   const [banquePrincipaleId, setBanquePrincipaleIdState] = useState('');
   const [savingBanquePrincipale, setSavingBanquePrincipale] = useState(false);

@@ -4,11 +4,10 @@
 // admin/directeur (même posture que /api/accounts et /api/taxes).
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';
-import { requireRole } from '../middleware/requireRole.js';
 import { pool } from '../db.js';
 
 const router = express.Router();
-const ecriture = [authRequired, requireRole('admin', 'directeur')];
+const ecriture = [authRequired];
 
 const JOURNAL_TYPES = ['sale', 'purchase', 'cash', 'bank', 'general'];
 

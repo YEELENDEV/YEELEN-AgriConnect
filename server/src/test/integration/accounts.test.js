@@ -1,4 +1,4 @@
-import { app, pool, request, registerEntreprise, createEmployeeLogin } from './helpers.js';
+import { app, pool, request, registerEntreprise, createEmployeeLogin, restreindreEcritures } from './helpers.js';
 
 afterAll(async () => { await pool.end(); });
 
@@ -46,6 +46,7 @@ describe('Plan de comptes (account.account-like) — seed, CRUD, rôles, isolati
 
   test('écritures réservées admin/directeur (ouvrier → 403, lecture OK)', async () => {
     const ouvrier = await createEmployeeLogin(admin.token, 'ouvrier');
+    await restreindreEcritures(admin.entrepriseId, ouvrier.email, ['referentiels_comptables']);
     expect((await request(app).get('/api/accounts').set(bearer(ouvrier.token))).status).toBe(200);
     expect((await request(app).post('/api/accounts').set(bearer(ouvrier.token)).send({ code: 'KO', name: 'KO', accountType: 'income' })).status).toBe(403);
   });

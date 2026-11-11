@@ -1,12 +1,9 @@
 // Point d'accès unique à PostgreSQL pour tout le backend : chaque fichier de routes/
 // services importe `pool` d'ici plutôt que de créer sa propre connexion.
 import pg from "pg";
-import dotenv from "dotenv";
-
-// Charge les variables d'environnement (DB_HOST, DB_PORT, etc.) depuis le .env
-// le plus proche — indépendant du chargement fait dans config/env.js (voir ce
-// fichier pour la variable JWT_SECRET, chargée séparément depuis le .env racine).
-dotenv.config();
+// Chargement des variables d'environnement centralisé dans config/env.js (server/.env puis
+// .env racine) — importé ici pour garantir que DB_* sont posées avant la création du pool.
+import "./config/env.js";
 
 const { Pool } = pg;
 
@@ -18,23 +15,22 @@ export const pool = new Pool({
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME,
+  // Une base injoignable doit faire échouer la requête rapidement plutôt que de bloquer
+  // indéfiniment un worker HTTP.
+  connectionTimeoutMillis: 10_000,
+});
+
+// Une connexion inactive du pool peut être coupée côté serveur (redémarrage de Postgres) :
+// sans ce handler, l'événement 'error' non écouté ferait tomber tout le process Node.
+pool.on("error", (err) => {
+  console.error("[pg pool] connexion inactive en erreur", err.message);
 });
 
 // Vérifie au démarrage du serveur que la connexion PostgreSQL fonctionne réellement
-// (pas seulement que les variables d'environnement sont présentes) — affiche la
-// configuration utilisée et un ping SQL simple (SELECT NOW()) pour confirmer.
+// (pas seulement que les variables d'environnement sont présentes). Lève une erreur en cas
+// d'échec : server.js s'arrête alors plutôt que de répondre 500 sur toutes les routes.
 export async function testDatabase() {
-  console.log("DB_HOST =", process.env.DB_HOST);
-  console.log("DB_PORT =", process.env.DB_PORT);
-  console.log("DB_USER =", process.env.DB_USER);
-  console.log("DB_NAME =", process.env.DB_NAME);
-
-  try {
-    const result = await pool.query("SELECT NOW()");
-    console.log("✅ PostgreSQL connecté");
-    console.log(result.rows[0]);
-  } catch (err) {
-    console.error("❌ Erreur PostgreSQL");
-    console.error(err);
-  }
+  console.log(`Connexion PostgreSQL : ${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB_NAME}`);
+  await pool.query("SELECT 1");
+  console.log("✅ PostgreSQL connecté");
 }

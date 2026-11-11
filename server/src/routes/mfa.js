@@ -1,4 +1,5 @@
 import express from 'express';
+import bcrypt from 'bcryptjs';
 import QRCode from 'qrcode';
 // otplib 13 est un paquet dual ESM/CJS — l'import ESM natif fonctionne aussi bien
 // sous `node` qu'avec Jest (--experimental-vm-modules), contrairement au shim
@@ -41,8 +42,15 @@ async function issueEmailCode(userId, email, req) {
 router.post('/setup', authRequired, async (req, res) => {
   const method = req.body?.method === 'email' ? 'email' : 'totp';
   try {
-    const userResult = await pool.query('SELECT email FROM users WHERE id = $1', [req.user.sub]);
-    const email = userResult.rows[0].email;
+    const userResult = await pool.query('SELECT email, mfa_enabled FROM users WHERE id = $1', [req.user.sub]);
+    if (!userResult.rows[0]) return res.status(404).json({ error: 'Utilisateur introuvable.' });
+    const { email, mfa_enabled: mfaDejaActive } = userResult.rows[0];
+    // Sans ce garde, un jeton volé suffisait à remplacer silencieusement le secret TOTP d'un
+    // compte déjà protégé (l'attaquant récupérait le QR code de SON appareil). Changer de
+    // méthode impose de désactiver d'abord — ce qui exige le mot de passe (voir /disable).
+    if (mfaDejaActive) {
+      return res.status(409).json({ error: 'La vérification en deux étapes est déjà active. Désactivez-la avant d’en configurer une nouvelle.' });
+    }
 
     if (method === 'email') {
       const r = await issueEmailCode(req.user.sub, email, req);
@@ -84,11 +92,24 @@ router.post('/verify', authRequired, async (req, res) => {
   if (!code) return res.status(400).json({ error: 'Code requis.' });
 
   try {
+    const userResult = await pool.query('SELECT email FROM users WHERE id = $1', [req.user.sub]);
+    if (!userResult.rows[0]) return res.status(404).json({ error: 'Utilisateur introuvable.' });
+    const { email } = userResult.rows[0];
+
+    // Même limite que la connexion (5 échecs/heure) : un code à 6 chiffres ne doit pas pouvoir
+    // être deviné par essais successifs.
+    const echecs = await countRecentAuditEvents(email, ['mfa_verify_failed'], 60);
+    if (echecs >= 5) {
+      return res.status(429).json({ error: 'Trop de tentatives. Réessayez dans une heure.' });
+    }
+    const echec = async (message) => {
+      await logAuditEvent({ entrepriseId: req.user.entrepriseId, userId: req.user.sub, email, action: 'mfa_verify_failed', req });
+      return res.status(400).json({ error: message });
+    };
+
     if (method === 'email') {
-      const userResult = await pool.query('SELECT email FROM users WHERE id = $1', [req.user.sub]);
-      const email = userResult.rows[0].email;
       if (!verifyEmailCode(req.user.sub, email, code)) {
-        return res.status(400).json({ error: 'Code invalide ou expiré.' });
+        return echec('Code invalide ou expiré.');
       }
       await pool.query(
         "UPDATE users SET mfa_enabled = true, mfa_method = 'email', mfa_secret = NULL WHERE id = $1",
@@ -102,8 +123,8 @@ router.post('/verify', authRequired, async (req, res) => {
     const secret = result.rows[0]?.mfa_secret;
     if (!secret) return res.status(400).json({ error: "Aucune procédure d'activation en cours." });
 
-    const { valid } = await verify({ secret, token: code });
-    if (!valid) return res.status(400).json({ error: 'Code invalide.' });
+    const { valid } = await verify({ secret, token: String(code) });
+    if (!valid) return echec('Code invalide.');
 
     await pool.query(
       "UPDATE users SET mfa_enabled = true, mfa_method = 'totp' WHERE id = $1",
@@ -116,9 +137,28 @@ router.post('/verify', authRequired, async (req, res) => {
   }
 });
 
-// ─── POST /api/mfa/disable ───
+// ─── POST /api/mfa/disable ({ password }) ───
+// Exige le mot de passe actuel : désactiver la 2FA affaiblit le compte, un jeton de session
+// seul (volé, ou session laissée ouverte) ne doit pas suffire.
 router.post('/disable', authRequired, async (req, res) => {
+  const { password } = req.body || {};
+  if (!password || typeof password !== 'string') {
+    return res.status(400).json({ error: 'Mot de passe requis pour désactiver la vérification en deux étapes.' });
+  }
   try {
+    const userResult = await pool.query('SELECT email, password FROM users WHERE id = $1', [req.user.sub]);
+    const user = userResult.rows[0];
+    if (!user) return res.status(404).json({ error: 'Utilisateur introuvable.' });
+
+    const echecs = await countRecentAuditEvents(user.email, ['mfa_disable_failed'], 60);
+    if (echecs >= 5) {
+      return res.status(429).json({ error: 'Trop de tentatives. Réessayez dans une heure.' });
+    }
+    if (!(await bcrypt.compare(password, user.password))) {
+      await logAuditEvent({ entrepriseId: req.user.entrepriseId, userId: req.user.sub, email: user.email, action: 'mfa_disable_failed', req });
+      return res.status(401).json({ error: 'Mot de passe incorrect.' });
+    }
+
     await pool.query(
       "UPDATE users SET mfa_enabled = false, mfa_secret = NULL, mfa_method = 'totp' WHERE id = $1",
       [req.user.sub]

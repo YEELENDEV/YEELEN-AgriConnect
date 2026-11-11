@@ -8,7 +8,6 @@
 // autonome pour l'instant.
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';
-import { requireRole } from '../middleware/requireRole.js';
 import { pool } from '../db.js';
 import { appliquerTaxesLigne } from '../utils/taxeCompute.js';
 import {
@@ -17,7 +16,7 @@ import {
 } from '../utils/accountMove.js';
 
 const router = express.Router();
-const ecriture = [authRequired, requireRole('admin', 'directeur')];
+const ecriture = [authRequired];
 
 const INVOICE_TYPES = ['out_invoice', 'out_refund', 'in_invoice', 'in_refund'];
 
@@ -804,6 +803,10 @@ router.post('/', authRequired, async (req, res) => {
       const chk = await client.query('SELECT 1 FROM contacts WHERE id = $1 AND entreprise_id = $2', [partnerId, req.user.entrepriseId]);
       if (chk.rows.length === 0) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Partenaire inconnu pour cette entreprise.' }); }
     }
+    if (paymentTermId) {
+      const chk = await client.query('SELECT 1 FROM payment_terms WHERE id = $1 AND entreprise_id = $2', [paymentTermId, req.user.entrepriseId]);
+      if (chk.rows.length === 0) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Condition de paiement inconnue.' }); }
+    }
 
     const taxMap = await chargerTaxMap(req.user.entrepriseId, client);
     const normalisees = lignes.map(normLigne);
@@ -861,6 +864,12 @@ router.put('/:id', authRequired, async (req, res) => {
         if (c.rows.length === 0) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Partenaire inconnu.' }); }
       }
       await client.query('UPDATE account_move SET partner_id = $1 WHERE id = $2', [partnerId || null, req.params.id]);
+    }
+    // Même contrôle que pour le partenaire : une condition de paiement d'une AUTRE entreprise ne
+    // doit pas pouvoir être rattachée (les FK ne vérifient pas l'appartenance au tenant).
+    if (paymentTermId) {
+      const pt = await client.query('SELECT 1 FROM payment_terms WHERE id = $1 AND entreprise_id = $2', [paymentTermId, req.user.entrepriseId]);
+      if (pt.rows.length === 0) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Condition de paiement inconnue.' }); }
     }
     for (const [k, col] of [['invoiceDate', 'invoice_date'], ['invoiceDateDue', 'invoice_date_due'], ['invoiceOrigin', 'invoice_origin'], ['ref', 'ref'], ['paymentTermId', 'payment_term_id']]) {
       if (req.body[k] !== undefined) {
