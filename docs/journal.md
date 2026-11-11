@@ -5,6 +5,35 @@ Extrait de `CLAUDE.md` le 2026-08-28 pour alléger le contexte chargé à chaque
 
 ---
 
+### Lot 0 de l'audit : garde-fous du dépôt — 2026-11-11
+
+Premier lot du plan de l'audit (artefact « Audit AgriConnect »), sur le modèle des hooks que
+l'utilisateur utilisait sur son projet Zabbix/Grafana (GitLab). Détail : `docs/securite-depot.md`.
+
+- **Lefthook** (et non le framework Python `pre-commit` : Python n'est pas installé sur ce PC)
+  installé par `npm install` (script `prepare`, `|| exit 0` pour ne pas casser le build Docker,
+  qui n'a pas de `.git`). Avant commit : fichiers interdits, secretlint, oxlint (erreurs
+  seulement — 0 erreur et 118 avertissements au moment de la mise en place). Avant push :
+  secretlint sur les fichiers poussés, tests unitaires des deux paquets, `npm audit` haut niveau.
+- **CI** : nouveau job `securite` (gitleaks sur tout l'historique, fichiers interdits sur les
+  fichiers suivis, secretlint, lint, audit), `permissions: contents: read` ; **CodeQL**
+  (`security-extended`) et **Dependabot** (npm ×2 groupés mineures/correctifs, actions, Docker).
+- **Urgence S1 traitée dans ce lot** (sinon le hook avant push bloquait dès le départ) :
+  `proxy-addr` critique corrigé par `npm audit fix`, Express 4.22.3 (`qs`), nodemailer 9 → 10
+  (seule montée majeure, API utilisée inchangée, `engines >= 20`). **0 vulnérabilité** en
+  production côté backend et frontend.
+- **Vérifications d'historique** : gitleaks (Docker, dépôt en lecture seule) ne trouve **rien**
+  dans l'historique publié… y compris l'ancien `server/.env` de juillet 2026 (mot de passe
+  choisi à la main, aucun format reconnu) — d'où le contrôle des fichiers interdits, qui couvre
+  ce cas. Les valeurs exposées ne sont plus celles utilisées. 49 détections supplémentaires
+  existent dans des références **locales** `refs/cline/checkpoints/*` (points de sauvegarde de
+  l'extension VS Code Cline, qui capturent les fichiers non suivis dont `.env`) : jamais
+  poussées sur GitHub, valeurs anciennes ; leur suppression est laissée à l'utilisateur.
+- Hooks testés pour de vrai : `.env` forcé, fichier de dump et fausse clé AWS refusés ; commit
+  ordinaire accepté.
+
+---
+
 ### Audit sécurité + bascule des restrictions en refus réel (étape 3b) — 2026-11-11
 
 Demande de l'utilisateur : revoir tout le code, retirer l'inutile et le redondant, « sécuriser au

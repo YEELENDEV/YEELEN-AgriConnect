@@ -88,7 +88,7 @@ docker-compose up
 ```
 Spins up: `db` (postgres:18-alpine), `backend` (server/, port 4000), `frontend` (Vite build served by nginx, port 8090), `backup` (periodic `pg_dump` sidecar, see below). Frontend's `VITE_API_URL` is baked in at build time via a Docker build arg.
 
-There is no lint script wired into either `package.json` despite `.oxlintrc.json` existing at the root; run `npx oxlint` directly if linting is needed.
+**Repository guardrails (2026-11-11, see `docs/securite-depot.md`)**: `npm install` at the root installs Lefthook hooks (`lefthook.yml`). Pre-commit: forbidden files (`scripts/verifier-fichiers-interdits.mjs` — `.env`, dumps, `backups/`, keys, >5 MB), secretlint, oxlint (errors only). Pre-push: secretlint on pushed files, frontend + backend unit tests, `npm audit --omit=dev --audit-level=high` on both packages. CI job `securite` repeats all of it plus gitleaks over the full history; CodeQL and Dependabot run on GitHub. Scripts: `npm run lint`, `npm run secrets`. Python is not installed on this PC, which is why Lefthook (npm) is used instead of the Python `pre-commit` framework. The repo is **public**: never commit a real `.env` — share secrets encrypted with SOPS + age.
 
 ### CI
 `.github/workflows/ci.yml` (added 2026-08-30) runs on every push + PRs to `main`, two jobs:

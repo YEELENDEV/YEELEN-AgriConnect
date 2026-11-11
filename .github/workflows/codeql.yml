@@ -1,0 +1,32 @@
+# Analyse de sécurité du code par GitHub (CodeQL), gratuite sur un dépôt public : injections
+# SQL, XSS, chemins de fichiers contrôlés par l'utilisateur, etc. Les résultats apparaissent
+# dans l'onglet « Security » du dépôt et en commentaire sur les pull requests.
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "17 4 * * 1" # chaque lundi, pour les nouvelles règles publiées par GitHub
+
+permissions:
+  contents: read
+
+jobs:
+  analyse:
+    name: Analyse JavaScript
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write # publier les résultats dans l'onglet Security
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          queries: security-extended
+
+      - uses: github/codeql-action/analyze@v3

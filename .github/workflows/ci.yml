@@ -10,7 +10,49 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# Lecture seule par défaut : aucun job n'a besoin d'écrire dans le dépôt.
+permissions:
+  contents: read
+
 jobs:
+  # Mêmes garde-fous que les hooks Lefthook (lefthook.yml), refaits ici parce qu'un hook local
+  # se désactive (LEFTHOOK=0, --no-verify) : la CI est le contrôle qu'on ne peut pas contourner.
+  securite:
+    name: Sécurité (secrets, fichiers interdits, dépendances, lint)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # tout l'historique, pour que gitleaks voie chaque commit poussé
+
+      - name: Secrets dans tout l'historique (gitleaks)
+        run: |
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz | tar -xz gitleaks
+          ./gitleaks detect --source . --redact --no-banner --verbose
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install (outils de contrôle)
+        run: npm ci --legacy-peer-deps --ignore-scripts
+
+      - name: Fichiers interdits (.env, sauvegardes, clés)
+        run: git ls-files -z | xargs -0 node scripts/verifier-fichiers-interdits.mjs
+
+      - name: Secrets dans les fichiers (secretlint)
+        run: npx --no-install secretlint --maskSecrets "**/*"
+
+      - name: Lint (erreurs bloquantes)
+        run: npm run lint
+
+      - name: Vulnérabilités des dépendances de production
+        run: |
+          npm audit --omit=dev --audit-level=high
+          npm --prefix server audit --omit=dev --audit-level=high
+
   backend:
     name: Backend (unit + intégration)
     runs-on: ubuntu-latest
