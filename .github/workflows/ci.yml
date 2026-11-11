@@ -1,11 +1,20 @@
 name: CI
 
+# Une seule exécution par commit (correctif du 2026-11-11) :
+#   - pull_request : chaque commit poussé sur une branche qui a une PR vers main ;
+#   - push sur main uniquement : l'état réellement fusionné.
+# Avant, `push` sans filtre s'ajoutait à `pull_request` : chaque commit d'une PR lançait la CI
+# DEUX fois (même code, mêmes tests), ce qui a saturé les 20 tâches parallèles d'un compte
+# gratuit lors de la première vague de Dependabot. Une branche sans PR n'a plus de CI sur
+# GitHub : les hooks Lefthook (avant commit / avant push) la vérifient sur le poste.
 on:
   push:
+    branches: [main]
   pull_request:
     branches: [main]
 
-# Un seul run par ref à la fois : un nouveau push annule le précédent encore en cours.
+# Un seul run par ref à la fois : un nouveau commit annule le précédent encore en cours
+# (pour une PR, la ref est refs/pull/<n>/merge ; pour main, refs/heads/main).
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
