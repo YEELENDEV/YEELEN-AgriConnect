@@ -11,7 +11,8 @@ import fs from 'node:fs';
 
 const INTERDITS = [
   { motif: /(^|\/)\.env(\.[^/]*)?$/, raison: 'fichier de variables d’environnement (secrets)', sauf: /\.env\.example$/ },
-  { motif: /\.dump$|\.sql\.gz$|\.backup$/, raison: 'sauvegarde de base de données (données réelles)' },
+  // `server/Dockerfile.backup` (image du service de sauvegarde) n'est pas une sauvegarde : exclu.
+  { motif: /\.dump$|\.sql\.gz$|\.backup$/, raison: 'sauvegarde de base de données (données réelles)', sauf: /(^|\/)Dockerfile\.backup$/ },
   { motif: /(^|\/)backups\//, raison: 'dossier de sauvegardes' },
   { motif: /\.(pem|key|p12|pfx|jks|keystore)$/, raison: 'clé privée ou certificat' },
   { motif: /(^|\/)id_(rsa|dsa|ecdsa|ed25519)$/, raison: 'clé SSH privée' },
@@ -36,7 +37,7 @@ for (const f of fichiers) {
 }
 
 if (refus.length) {
-  console.error('\n✖ Commit refusé : fichier(s) interdit(s) dans le dépôt.\n');
+  console.error('\n✖ Fichier(s) interdit(s) dans le dépôt.\n');
   console.error(refus.join('\n'));
   console.error('\nRetirez-le(s) du commit :  git restore --staged <fichier>');
   console.error('Les secrets partagés se versionnent chiffrés avec SOPS (voir docs/securite-depot.md).\n');
