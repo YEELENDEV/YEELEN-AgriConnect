@@ -1,0 +1,33 @@
+# Garde-fous exécutés sur le poste du développeur, avant que quoi que ce soit n'atteigne GitHub.
+# Installés automatiquement par `npm install` (script « prepare » du package.json racine).
+# La CI refait ces contrôles : désactiver les hooks en local (LEFTHOOK=0) ne contourne rien.
+# Détails et procédure : docs/securite-depot.md
+
+pre-commit:
+  parallel: true
+  commands:
+    fichiers-interdits:
+      # .env, sauvegardes de la base, clés privées, fichiers de plus de 5 Mo.
+      run: node scripts/verifier-fichiers-interdits.mjs {staged_files}
+    secrets:
+      # Jetons et clés d'API connus, clés privées, URL avec identifiants.
+      run: npx --no-install secretlint --maskSecrets {staged_files}
+    lint:
+      # Erreurs uniquement : les avertissements existants ne bloquent pas (voir lot 3).
+      glob: "*.{js,jsx,mjs,cjs}"
+      run: npx --no-install oxlint -c .oxlintrc.json {staged_files}
+
+pre-push:
+  parallel: false
+  commands:
+    secrets:
+      # Tous les fichiers modifiés par les commits poussés, y compris ceux faits hors hook.
+      run: npx --no-install secretlint --maskSecrets {push_files}
+    tests-frontend:
+      run: npm test --silent
+    tests-backend:
+      root: "server/"
+      run: npm test --silent
+    audit-dependances:
+      # Vulnérabilités hautes ou critiques livrées aux utilisateurs (dépendances de production).
+      run: npm audit --omit=dev --audit-level=high && npm --prefix server audit --omit=dev --audit-level=high
