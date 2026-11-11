@@ -1,5 +1,12 @@
-# Dependabot ouvre chaque semaine des pull requests de mise à jour, et immédiatement une PR
-# dès qu'une vulnérabilité connue touche une dépendance. Chaque PR passe la CI complète.
+# Dependabot ouvre chaque semaine des pull requests de mise à jour, et une PR dès qu'une
+# vulnérabilité connue touche une dépendance. Chaque PR passe la CI complète.
+#
+# Réglage du 2026-11-11, après une première vague de 15 PR : Dependabot ne propose plus que
+# des mises à jour SANS RISQUE (mineures et correctives, regroupées). Les montées de version
+# majeure (Express 5, React 19, Vite 8…) changent des API et demandent une adaptation du code :
+# elles sont faites à la main, une par une, au lot 3 de l'audit (« Socle technique »).
+# Rien n'échappe pour autant : `npm audit` (hooks avant push + job « Sécurité » de la CI)
+# bloque toute dépendance vulnérable, et les alertes restent visibles dans l'onglet Security.
 version: 2
 updates:
   - package-ecosystem: npm
@@ -7,10 +14,11 @@ updates:
     schedule:
       interval: weekly
       day: monday
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 3
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
-      # Les mises à jour mineures et correctives regroupées en une seule PR, pour ne pas noyer
-      # le dépôt ; les montées de version majeures restent séparées (à relire une par une).
       mineures:
         update-types: [minor, patch]
 
@@ -19,22 +27,39 @@ updates:
     schedule:
       interval: weekly
       day: monday
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 3
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
       mineures:
         update-types: [minor, patch]
 
+  # Actions GitHub : leurs montées majeures sont en général sans impact sur le dépôt
+  # (changement de version de Node interne à l'action). Regroupées en une seule PR mensuelle.
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
       interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
 
+  # Images Docker : Node reste sur une version LTS (22, choisie au lot 1). Les versions
+  # impaires (23, 25…) ne sont jamais LTS et les suivantes se décident à la main ; seules les
+  # mises à jour correctives de la 22 sont proposées.
   - package-ecosystem: docker
     directory: "/"
     schedule:
       interval: monthly
+    ignore:
+      - dependency-name: node
+        versions: [">=23"]
 
   - package-ecosystem: docker
     directory: "/server"
     schedule:
       interval: monthly
+    ignore:
+      - dependency-name: node
+        versions: [">=23"]
