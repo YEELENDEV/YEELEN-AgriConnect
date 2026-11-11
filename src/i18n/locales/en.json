@@ -57,7 +57,8 @@
       "S",
       "S"
     ],
-    "type": "Type"
+    "type": "Type",
+    "notes": "Notes"
   },
   "role": {
     "proprietaire": "Owner",
@@ -246,9 +247,9 @@
     "empty": "No notifications at the moment.",
     "lowStockTitle": "Low stock",
     "lowStockMsg": "{{name}} is below the threshold ({{qty}} {{unit}})",
-    "highTempTitle": "Temperature too high",
+    "highTempTitle": "Temperature too high (simulation)",
     "highTempMsg": "{{name}} exceeds {{temp}}°C",
-    "drySoilTitle": "Dry soil",
+    "drySoilTitle": "Dry soil (simulation)",
     "drySoilMsg": "{{name}} needs watering",
     "deliveryTitle": "Delivery scheduled today",
     "deliveryMsg": "{{product}} to deliver to {{customer}}",
@@ -264,13 +265,13 @@
     "cardProfit": "Profit",
     "cardSales": "Number of sales",
     "cardPendingDeliveries": "Pending deliveries",
-    "cardPlotsToWater": "Plots to water",
+    "cardPlotsToWater": "Plots to water (simulation)",
     "cardEggs": "Eggs available",
     "cardAlerts": "Important alerts",
     "alertsTitle": "Important alerts",
     "noAlerts": "No alerts to report at the moment.",
-    "alertPlotsToWater_one": "{{count}} plot to water",
-    "alertPlotsToWater_other": "{{count}} plots to water",
+    "alertPlotsToWater_one": "{{count}} plot to water (simulation)",
+    "alertPlotsToWater_other": "{{count}} plots to water (simulation)",
     "alertLowEggStock": "Low egg stock ({{count}})",
     "alertPendingDeliveries_one": "{{count}} delivery pending",
     "alertPendingDeliveries_other": "{{count}} deliveries pending",
@@ -2607,5 +2608,9 @@
     "resumeResultat": "{{count}} account(s)",
     "resumeBilan": "{{count}} account(s)",
     "resumeTva": "{{count}} tax(es)"
+  },
+  "simulation": {
+    "capteurs": "Simulated values: no sensor is connected. Do not base any decision on them.",
+    "capteursIrrigation": "Simulated values: no sensor is connected, and automatic mode opens the valve based on these values. Do not use them to decide when to irrigate."
   }
 }

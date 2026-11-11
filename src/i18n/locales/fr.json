@@ -57,7 +57,8 @@
       "S",
       "D"
     ],
-    "type": "Type"
+    "type": "Type",
+    "notes": "Notes"
   },
   "role": {
     "proprietaire": "Propriétaire",
@@ -246,9 +247,9 @@
     "empty": "Aucune notification pour le moment.",
     "lowStockTitle": "Stock faible",
     "lowStockMsg": "{{name}} est en dessous du seuil ({{qty}} {{unit}})",
-    "highTempTitle": "Température trop élevée",
+    "highTempTitle": "Température trop élevée (simulation)",
     "highTempMsg": "{{name}} dépasse {{temp}}°C",
-    "drySoilTitle": "Sol sec",
+    "drySoilTitle": "Sol sec (simulation)",
     "drySoilMsg": "{{name}} nécessite un arrosage",
     "deliveryTitle": "Livraison prévue aujourd'hui",
     "deliveryMsg": "{{product}} à livrer à {{customer}}",
@@ -264,13 +265,13 @@
     "cardProfit": "Bénéfice",
     "cardSales": "Nombre de ventes",
     "cardPendingDeliveries": "Livraisons en attente",
-    "cardPlotsToWater": "Parcelles à arroser",
+    "cardPlotsToWater": "Parcelles à arroser (simulation)",
     "cardEggs": "Nombre d'œufs disponibles",
     "cardAlerts": "Alertes importantes",
     "alertsTitle": "Alertes importantes",
     "noAlerts": "Aucune alerte à signaler pour le moment.",
-    "alertPlotsToWater_one": "{{count}} parcelle à arroser",
-    "alertPlotsToWater_other": "{{count}} parcelles à arroser",
+    "alertPlotsToWater_one": "{{count}} parcelle à arroser (simulation)",
+    "alertPlotsToWater_other": "{{count}} parcelles à arroser (simulation)",
     "alertLowEggStock": "Stock d'œufs faible ({{count}})",
     "alertPendingDeliveries_one": "{{count}} livraison en attente",
     "alertPendingDeliveries_other": "{{count}} livraisons en attente",
@@ -2607,5 +2608,9 @@
     "resumeResultat": "{{count}} compte(s)",
     "resumeBilan": "{{count}} compte(s)",
     "resumeTva": "{{count}} taxe(s)"
+  },
+  "simulation": {
+    "capteurs": "Valeurs simulées : aucun capteur n’est branché. Ne vous en servez pas pour prendre une décision.",
+    "capteursIrrigation": "Valeurs simulées : aucun capteur n’est branché, et le mode automatique ouvre la vanne d’après ces valeurs. Ne vous en servez pas pour décider d’irriguer."
   }
 }

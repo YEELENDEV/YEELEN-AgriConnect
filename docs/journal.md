@@ -5,6 +5,29 @@ Extrait de `CLAUDE.md` le 2026-08-28 pour alléger le contexte chargé à chaque
 
 ---
 
+### Lot 1 de l'audit : urgences — 2026-11-11
+
+- **S2** : images Docker frontend et backend en `node:22-alpine` (Node 20 en fin de vie depuis
+  avril 2026 ; la CI testait déjà en 22). Vérifié : backend `v22.23.5`, image frontend construite.
+- **D1** : nouveau composant `MentionSimulation` (`ui.jsx`) sous chaque jauge alimentée par une
+  simulation aléatoire — cartes de parcelles, carte des parcelles, ambiance du poulailler,
+  bassins. Les textes qui en dérivent (carte et alerte « Parcelles à arroser » du tableau de
+  bord, notifications « Sol sec » / « Température trop élevée ») portent « (simulation) ».
+  Option retenue : **étiqueter**, pas masquer. **À trancher par l'utilisateur** : dans Cultures,
+  la simulation pilote le mode automatique, qui ouvre/ferme la vanne et **écrit ces événements
+  fictifs en base** (`parcelles_historique`).
+- **S7** : `utils/html.js` (`echapperHtml`, `ligneEntete`) appliqué à toutes les valeurs des
+  modèles d'email (`services/mailer.js`). L'expéditeur des devis passe en objet nodemailer
+  (`{ name, address }`) : un nom d'entreprise avec guillemets ou retour à la ligne ne peut plus
+  casser l'en-tête `From` ; sujet borné à une ligne.
+- **T3** : clé `common.notes` ajoutée (en-tête de l'export CSV HACCP).
+- **A6** : `GET /api/health` (200 si `SELECT 1` répond, 503 sinon), déclarée hors périmètre du
+  catalogue ; contrôle de santé Docker du backend (`wget`). Vérifié : conteneur `healthy`.
+- (S1 avait été traité dans le lot 0.) 490 tests d'intégration, 85 unitaires backend,
+  141 frontend, build verts ; mentions vérifiées dans le navigateur (entreprise jetable supprimée).
+
+---
+
 ### Lot 0 de l'audit : garde-fous du dépôt — 2026-11-11
 
 Premier lot du plan de l'audit (artefact « Audit AgriConnect »), sur le modèle des hooks que

@@ -274,6 +274,7 @@ const EXCEPTIONS = {
 // cette liste deviendrait le tapis sous lequel on glisse ce qu'on n'a pas su classer.
 const HORS_PERIMETRE = {
   'GET /': 'sonde de santé, aucune donnée',
+  'GET /api/health': 'sonde de santé (base de données), aucune donnée',
 
   'POST /api/auth/login': 'authentification, antérieure à tout rôle',
   'POST /api/auth/register': 'création de compte, antérieure à tout rôle',

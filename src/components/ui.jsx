@@ -219,6 +219,23 @@ export function Select({ label, aide, children, className, style, ...props }) {
   );
 }
 
+// Mention visible sous toute valeur issue d'une SIMULATION (aucun capteur réel n'est branché) :
+// jauges d'humidité et de température des parcelles, ambiance du poulailler, qualité de l'eau
+// des bassins. Sans elle, ces chiffres aléatoires se lisaient comme de vraies mesures — et un
+// agriculteur pouvait décider d'irriguer, ou de ne pas le faire, sur cette base (audit D1).
+export function MentionSimulation({ texte }) {
+  return (
+    <div role="note" style={{
+      display: 'flex', alignItems: 'flex-start', gap: SPACE.sm,
+      background: COLORS.ochreSoft, color: COLORS.ochre, borderRadius: RADIUS.control,
+      padding: '6px 10px', fontSize: TEXT.sm, fontWeight: 500, lineHeight: 1.4,
+    }}>
+      <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 2 }} aria-hidden="true" />
+      <span>{texte}</span>
+    </div>
+  );
+}
+
 export function Badge({ children, tone = 'green' }) {
   const map = {
     green: { bg: COLORS.greenSoft, fg: COLORS.green },
