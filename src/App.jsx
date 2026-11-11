@@ -65,7 +65,7 @@ import AbonnementBloque from './components/AbonnementBloque';
 const MeteoModule = lazy(() => import('./components/MeteoModule'));
 const SurveillanceModule = lazy(() => import('./components/SurveillanceModule'));
 import MeteoWidget from './components/MeteoWidget';
-import { Badge, Button, Card, DataTable, Field, GaugeDial, MiniChart, Select, ToastContainer, notifyError, notifySuccess } from './components/ui.jsx';
+import { Badge, Button, Card, DataTable, Field, GaugeDial, MentionSimulation, MiniChart, Select, ToastContainer, notifyError, notifySuccess } from './components/ui.jsx';
 const ObservationListView = lazy(() => import('./components/ObservationListView').then((m) => ({ default: m.ObservationListView })));
 const RegistreIntrantsView = lazy(() => import('./components/RegistreIntrantsView').then((m) => ({ default: m.RegistreIntrantsView })));
 const FeedbackModule = lazy(() => import('./components/FeedbackModule').then((m) => ({ default: m.FeedbackModule })));
@@ -198,6 +198,7 @@ function ParcelMapTab({ parcelles, onParcelleMaj }) {
             <GaugeDial value={selected.humidite} label={t('cultures.soilHumidity')} unit="%" colorMain={COLORS.blue} colorTrack={COLORS.blueSoft} icon={<Droplet size={15} color={COLORS.blue} />} />
             <GaugeDial value={selected.temperature} max={45} label={t('cultures.temperature')} unit="°" colorMain={COLORS.ochre} colorTrack={COLORS.ochreSoft} icon={<Thermometer size={15} color={COLORS.ochre} />} />
           </div>
+          <MentionSimulation texte={t('simulation.capteurs')} />
 
           <div style={{ display: 'flex', gap: SPACE.md, marginTop: SPACE.sm, fontSize: TEXT.sm, color: COLORS.inkSoft, flexWrap: 'wrap' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: SPACE.xs }}><span style={{ width: 9, height: 9, borderRadius: '50%', background: COLORS.green, display: 'inline-block' }} /> {t('cultures.map.statusNormal')}</span>
@@ -234,6 +235,7 @@ function EnvironnementTab({ farmId }) {
         <GaugeDial value={env.temperature} max={45} label={t('poulailler.temperature')} unit="°" colorMain={COLORS.ochre} colorTrack={COLORS.ochreSoft} icon={<Thermometer size={15} color={COLORS.ochre} />} />
         <GaugeDial value={env.humidite} label={t('poulailler.humidite')} unit="%" colorMain={COLORS.blue} colorTrack={COLORS.blueSoft} icon={<Droplet size={15} color={COLORS.blue} />} />
       </div>
+      <MentionSimulation texte={t('simulation.capteurs')} />
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: SPACE.md, marginTop: SPACE.sm }}>
         <div>
           <div style={{ fontSize: TEXT.base, fontWeight: 600, marginBottom: SPACE.xs }}>{t('poulailler.tempEvolution')}</div>
@@ -287,6 +289,7 @@ function BassinsEnvironnementTab({ farmId }) {
         <GaugeDial value={env.oxygene} max={10} label={t('pisciculture.oxygene')} unit=" mg/L" colorMain={COLORS.green} colorTrack={COLORS.greenSoft} icon={<Droplet size={15} color={COLORS.green} />} />
         <GaugeDial value={env.temperature} max={40} label={t('pisciculture.temperatureEau')} unit="°" colorMain={COLORS.ochre} colorTrack={COLORS.ochreSoft} icon={<Thermometer size={15} color={COLORS.ochre} />} />
       </div>
+      <MentionSimulation texte={t('simulation.capteurs')} />
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: SPACE.md, marginTop: SPACE.sm }}>
         <div>
           <div style={{ fontSize: TEXT.base, fontWeight: 600, marginBottom: SPACE.xs }}>{t('pisciculture.phEvolution')}</div>
@@ -5302,6 +5305,9 @@ function CulturesModule({ farmId, highlightProduitId }) {
                   colorMain={COLORS.ochre} colorTrack={COLORS.ochreSoft}
                   icon={<Thermometer size={15} color={COLORS.ochre} />}
                 />
+              </div>
+              <div style={{ marginBottom: SPACE.md }}>
+                <MentionSimulation texte={t('simulation.capteursIrrigation')} />
               </div>
               <div style={{ borderTop: `1px solid ${COLORS.border}`, paddingTop: SPACE.md, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <button

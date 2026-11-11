@@ -9,6 +9,7 @@
 import express from "express";
 import cors from "cors";
 import { IS_PRODUCTION } from "./config/env.js";
+import { pool } from "./db.js";
 import {
   enTetesSecurite, creerLimiteur, asyncMiddleware, route404, gestionnaireErreurs,
 } from "./middleware/securite.js";
@@ -195,6 +196,18 @@ app.use("/api/billing", billingRoutes);
 // Route de bienvenue à la racine — vérification manuelle rapide ("le backend répond-il ?").
 app.get("/", (req, res) => {
   res.json({ message: "Backend AgriApp opérationnel 🚜" });
+});
+
+// Route de santé pour la supervision et le contrôle de santé Docker (docker-compose.yml) :
+// 200 seulement si la base répond réellement, 503 sinon. Publique et sans donnée métier ;
+// déjà prévue dans la liste blanche de subscriptionGuard mais jamais créée avant le lot 1.
+app.get("/api/health", async (req, res) => {
+  try {
+    await pool.query("SELECT 1");
+    res.json({ statut: "ok" });
+  } catch {
+    res.status(503).json({ statut: "indisponible", error: "Base de données injoignable." });
+  }
 });
 
 // Toute autre URL : 404 JSON (au lieu de la page HTML par défaut d'Express), puis
