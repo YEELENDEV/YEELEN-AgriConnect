@@ -8,7 +8,10 @@
 // c'est la source unique du montage des routes, partagée entre prod et tests.)
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
+import { IS_PRODUCTION } from "./config/env.js";
+import {
+  enTetesSecurite, creerLimiteur, asyncMiddleware, route404, gestionnaireErreurs,
+} from "./middleware/securite.js";
 
 import authRoutes from "./routes/auth.js";
 import businessRoutes from "./routes/business.js";
@@ -62,22 +65,64 @@ import { moduleGuard } from "./middleware/moduleGuard.js";
 import { creerPermissionGuard } from "./middleware/permissionGuard.js";
 import rolesRoutes from "./routes/roles.js";
 
-dotenv.config();
-
 const app = express();
 
-// cors() sans restriction : en développement le frontend (port 8090) et le backend
-// (port 4000) sont sur des origines différentes ; en production les deux passent par
-// le même domaine via Caddy, donc CORS n'est plus vraiment sollicité mais reste ouvert.
+// Ne révèle pas la technologie serveur (en-tête X-Powered-By: Express).
+app.disable("x-powered-by");
+
+// Proxy de confiance : seules les adresses de bouclage et des réseaux privés (le réseau Docker
+// où vit Caddy) sont autorisées à fournir X-Forwarded-For. req.ip est alors la vraie IP du
+// client, et un client ne peut plus usurper une IP en forgeant lui-même cet en-tête (ce qui
+// contournait la limite d'inscriptions par IP). Surchargeable via TRUST_PROXY.
+app.set("trust proxy", process.env.TRUST_PROXY || "loopback, linklocal, uniquelocal");
+
+app.use(enTetesSecurite);
+
+// CORS : en production le frontend et l'API partagent le même domaine (Caddy), seules les
+// origines listées dans CORS_ORIGINS (ou FRONTEND_URL) sont acceptées. En développement, toute
+// origine localhost/127.0.0.1 est acceptée (Vite 5173, nginx 8090, preview…). L'API
+// n'utilise pas de cookies (jeton Bearer), donc pas de `credentials`.
 //
 // exposedHeaders : par défaut, le JavaScript d'une page ne peut lire QUE les en-têtes simples
 // d'une réponse cross-origin — Content-Disposition reste invisible même quand le serveur
 // l'envoie. Sans cette ligne, le PDF partagé par WhatsApp arrivait chez le client sous le nom
-// « document.pdf » au lieu de « FAC-2026-0001.pdf » : le serveur donnait le bon nom, le
-// navigateur le cachait, et rien ne le signalait.
-app.use(cors({ exposedHeaders: ['Content-Disposition'] }));
+// « document.pdf » au lieu de « FAC-2026-0001.pdf ».
+const ORIGINES_AUTORISEES = (process.env.CORS_ORIGINS || process.env.FRONTEND_URL || "")
+  .split(",").map((o) => o.trim().replace(/\/$/, "")).filter(Boolean);
+const ORIGINE_LOCALE = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
+function origineAutorisee(origin, req) {
+  // Pas d'en-tête Origin : outil en ligne de commande, caméra IP, GET même origine.
+  if (!origin) return true;
+  if (ORIGINES_AUTORISEES.includes(origin)) return true;
+  if (!IS_PRODUCTION && ORIGINE_LOCALE.test(origin)) return true;
+  // Même origine (cas de la production derrière Caddy, qui conserve l'en-tête Host) : un POST
+  // envoie lui aussi un en-tête Origin, qu'il ne faut pas confondre avec un appel tiers.
+  try { return new URL(origin).host === req.headers.host; } catch { return false; }
+}
+app.use(cors((req, callback) => {
+  const autorise = origineAutorisee(req.headers.origin, req);
+  callback(autorise ? null : new Error("CORS_ORIGINE_REFUSEE"), {
+    origin: autorise, exposedHeaders: ["Content-Disposition"],
+  });
+}));
 // Limite relevée à 2mb : la photo de contact est envoyée en base64 dans le corps JSON.
 app.use(express.json({ limit: "2mb" }));
+
+// Limitation de débit des routes publiques (sans authentification), par IP : anti force brute
+// sur la connexion / les codes, anti énumération des jetons de devis et de caméras. Les
+// limites métier plus fines (échecs par email, inscriptions par IP) vivent dans les routes.
+// Seulement les routes d'authentification publiques : /api/auth/me (appelé à chaque chargement
+// de page) ne doit pas consommer ce quota, sinon des collègues derrière une même IP
+// (box partagée, NAT d'opérateur mobile) se bloqueraient mutuellement.
+app.use(
+  ["/api/auth/login", "/api/auth/register", "/api/auth/confirmer-inscription", "/api/auth/renvoyer-code-inscription"],
+  creerLimiteur({
+    prefixe: "auth", fenetreMs: 15 * 60_000, max: 50,
+    message: "Trop de tentatives depuis cette adresse. Réessayez dans quelques minutes.",
+  })
+);
+app.use("/api/devis/public", creerLimiteur({ prefixe: "devis-public", fenetreMs: 60_000, max: 60 }));
+app.use("/api/cameras/alertes", creerLimiteur({ prefixe: "cameras-alertes", fenetreMs: 60_000, max: 120 }));
 
 // Abonnement Phase 1 (2026-09-04, Lot 2) : verifierTokenSiPresent pose req.user quand un
 // token valide est présent SANS jamais rejeter (authRequired, posé route par route plus loin,
@@ -85,17 +130,17 @@ app.use(express.json({ limit: "2mb" }));
 // une entreprise dont l'essai/l'abonnement a expiré — voir docs/spec-abonnement-phase1.md §3.3
 // pour la justification de ce montage global plutôt qu'un ajout à chaque route existante.
 app.use(verifierTokenSiPresent);
-app.use(subscriptionGuard);
+app.use(asyncMiddleware(subscriptionGuard));
 // Blocage d'accès par module payant (2026-09-07, suite du calcul de prix par module) — voir
 // middleware/moduleGuard.js pour le détail du découpage (modules payants / fonctions
 // transverses incluses / hors périmètre). Toujours après subscriptionGuard : une entreprise
 // dont l'abonnement global est expiré est déjà bloquée avant d'arriver ici.
-app.use(moduleGuard);
+app.use(asyncMiddleware(moduleGuard));
 
 // Permissions par ressource et action — ÉTAPE 2 : MODE OBSERVATION, ne refuse rien encore.
 // Journalise ce qu'il refuserait (audit_log, action « permission_observee ») pour qu'on corrige
 // la carte sur de vraies données avant de basculer en refus par défaut à l'étape 3.
-app.use(creerPermissionGuard(app));
+app.use(asyncMiddleware(creerPermissionGuard(app)));
 
 app.use("/api/auth", authRoutes);
 app.use("/api/roles", rolesRoutes);
@@ -151,5 +196,10 @@ app.use("/api/billing", billingRoutes);
 app.get("/", (req, res) => {
   res.json({ message: "Backend AgriApp opérationnel 🚜" });
 });
+
+// Toute autre URL : 404 JSON (au lieu de la page HTML par défaut d'Express), puis
+// gestionnaire d'erreurs final qui ne divulgue jamais de détail interne.
+app.use(route404);
+app.use(gestionnaireErreurs);
 
 export default app;

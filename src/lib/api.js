@@ -42,6 +42,12 @@ async function request(path, options = {}) {
     throw new Error(data.error || message);
   }
 
+  if (response.status === 403 && data.reason === 'restriction') {
+    // Le rôle a peut-être changé depuis le chargement de l'interface : le shell relit les
+    // restrictions pour masquer l'écran concerné (voir App.jsx).
+    window.dispatchEvent(new Event('agri-restrictions-changed'));
+  }
+
   if (!response.ok) {
     throw new Error(data.error || `Erreur ${response.status}`);
   }
@@ -234,14 +240,6 @@ export async function getCulturesMouvements(type) {
   return request(`/cultures/mouvements${type ? `?type=${type}` : ''}`);
 }
 
-export async function createCulturesMouvement(payload) {
-  return safeRequest('/cultures/mouvements', { method: 'POST', body: JSON.stringify(payload) });
-}
-
-export async function deleteCulturesMouvement(id, payload) {
-  return safeRequest(`/cultures/mouvements/${id}`, { method: 'DELETE', body: JSON.stringify(payload) });
-}
-
 // ─────────────────────────────────────────────────────────────────────
 // Produits (Cultures + Poulailler unifiés, 2026-08-18 — remplace les anciens
 // get/create/update/deletePoulaillerStock(s)/CulturesStock(s) séparés)
@@ -295,9 +293,6 @@ export async function getApplicationsIntrants() {
 export async function createApplicationIntrant(payload) {
   return safeRequest('/applications-intrants', { method: 'POST', body: JSON.stringify(payload) });
 }
-export async function updateApplicationIntrant(id, payload) {
-  return safeRequest(`/applications-intrants/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
-}
 export async function deleteApplicationIntrant(id) {
   return safeRequest(`/applications-intrants/${id}`, { method: 'DELETE' });
 }
@@ -313,10 +308,6 @@ export async function createProduitCategorie(payload) {
   return safeRequest('/produit-categories', { method: 'POST', body: JSON.stringify(payload) });
 }
 
-export async function updateProduitCategorie(id, payload) {
-  return safeRequest(`/produit-categories/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
-}
-
 export async function deleteProduitCategorie(id) {
   return safeRequest(`/produit-categories/${id}`, { method: 'DELETE' });
 }
@@ -330,10 +321,6 @@ export async function getProduitRecettes(module) {
 
 export async function createProduitRecette(payload) {
   return safeRequest('/produit-recettes', { method: 'POST', body: JSON.stringify(payload) });
-}
-
-export async function updateProduitRecette(id, payload) {
-  return safeRequest(`/produit-recettes/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
 }
 
 export async function deleteProduitRecette(id) {
@@ -386,10 +373,6 @@ export async function createHaccpControle(payload) {
   return safeRequest('/haccp', { method: 'POST', body: JSON.stringify(payload) });
 }
 
-export async function updateHaccpControle(id, payload) {
-  return safeRequest(`/haccp/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
-}
-
 export async function deleteHaccpControle(id) {
   return safeRequest(`/haccp/${id}`, { method: 'DELETE' });
 }
@@ -430,14 +413,6 @@ export async function deleteEquipementMaintenance(maintenanceId) {
 // ─────────────────────────────────────────────────────────────────────
 export async function getPoulaillerMouvements(type) {
   return request(`/poulailler/mouvements${type ? `?type=${type}` : ''}`);
-}
-
-export async function createPoulaillerMouvement(payload) {
-  return safeRequest('/poulailler/mouvements', { method: 'POST', body: JSON.stringify(payload) });
-}
-
-export async function deletePoulaillerMouvement(id, payload) {
-  return safeRequest(`/poulailler/mouvements/${id}`, { method: 'DELETE', body: JSON.stringify(payload) });
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -587,8 +562,9 @@ export async function verifyMfa(code, method = 'totp') {
   return request('/mfa/verify', { method: 'POST', body: JSON.stringify({ code, method }) });
 }
 
-export async function disableMfa() {
-  return request('/mfa/disable', { method: 'POST' });
+// Le mot de passe actuel est exigé par le serveur pour désactiver la 2FA.
+export async function disableMfa(password) {
+  return request('/mfa/disable', { method: 'POST', body: JSON.stringify({ password }) });
 }
 
 export async function getSalaries() {
@@ -622,10 +598,6 @@ export async function getSalarieConges(salarieId) {
   return request(`/salaries/${salarieId}/conges`);
 }
 
-export async function createSalarieConge(salarieId, payload) {
-  return request(`/salaries/${salarieId}/conges`, { method: 'POST', body: JSON.stringify(payload) });
-}
-
 export async function updateSalarieCongeStatut(congeId, statut) {
   return request(`/salaries/conges/${congeId}`, { method: 'PUT', body: JSON.stringify({ statut }) });
 }
@@ -651,12 +623,10 @@ export async function deleteSalarieAvance(avanceId) {
 // ─────────────────────────────────────────────────────────────────────
 export async function getDepartements() { return request('/rh/departements'); }
 export async function createDepartement(payload) { return request('/rh/departements', { method: 'POST', body: JSON.stringify(payload) }); }
-export async function updateDepartement(id, payload) { return request(`/rh/departements/${id}`, { method: 'PUT', body: JSON.stringify(payload) }); }
 export async function deleteDepartement(id) { return request(`/rh/departements/${id}`, { method: 'DELETE' }); }
 
 export async function getPostes() { return request('/rh/postes'); }
 export async function createPoste(payload) { return request('/rh/postes', { method: 'POST', body: JSON.stringify(payload) }); }
-export async function updatePoste(id, payload) { return request(`/rh/postes/${id}`, { method: 'PUT', body: JSON.stringify(payload) }); }
 export async function deletePoste(id) { return request(`/rh/postes/${id}`, { method: 'DELETE' }); }
 
 export async function getJoursFeries() { return request('/rh/jours-feries'); }
@@ -665,7 +635,6 @@ export async function deleteJourFerie(id) { return request(`/rh/jours-feries/${i
 
 export async function getCongesTypes() { return request('/rh/conges-types'); }
 export async function createCongeType(payload) { return request('/rh/conges-types', { method: 'POST', body: JSON.stringify(payload) }); }
-export async function updateCongeType(id, payload) { return request(`/rh/conges-types/${id}`, { method: 'PUT', body: JSON.stringify(payload) }); }
 export async function deleteCongeType(id) { return request(`/rh/conges-types/${id}`, { method: 'DELETE' }); }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -689,9 +658,6 @@ export async function deleteSalarieCongeDroit(droitId) { return request(`/salari
 export async function getSalarieContrats(salarieId) { return request(`/salaries/${salarieId}/contrats`); }
 export async function createSalarieContrat(salarieId, payload) {
   return request(`/salaries/${salarieId}/contrats`, { method: 'POST', body: JSON.stringify(payload) });
-}
-export async function updateSalarieContrat(contratId, payload) {
-  return request(`/salaries/contrats/${contratId}`, { method: 'PUT', body: JSON.stringify(payload) });
 }
 export async function deleteSalarieContrat(contratId) { return request(`/salaries/contrats/${contratId}`, { method: 'DELETE' }); }
 
@@ -717,11 +683,6 @@ export async function getBanques() {
 // Crée un nouveau compte bancaire (nomBanque, iban, typeCompte, solde)
 export async function createBanque(payload) {
   return request('/banques', { method: 'POST', body: JSON.stringify(payload) });
-}
-
-// Met à jour un compte bancaire existant, identifié par son id
-export async function updateBanque(id, payload) {
-  return request(`/banques/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
 }
 
 // Supprime définitivement un compte bancaire (pas de désactivation ici)
@@ -882,10 +843,6 @@ export async function deleteListePrixLigne(ligneId) {
   return request(`/listes-prix/lignes/${ligneId}`, { method: 'DELETE' });
 }
 
-export async function getContactPrixEffectifs(contactId) {
-  return request(`/contacts/${contactId}/prix-effectifs`);
-}
-
 // Résolution serveur d'un prix effectif (étape 4 alignement produit/stock Odoo — remplace le
 // calcul purement client qu'était prixPourMatch dans DevisModule).
 // États comptables : grand livre et balance générale. Les deux prennent la même période
@@ -995,9 +952,6 @@ export async function getPaymentTerms() {
 export async function createPaymentTerm(payload) {
   return request('/payment-terms', { method: 'POST', body: JSON.stringify(payload) });
 }
-export async function updatePaymentTerm(id, payload) {
-  return request(`/payment-terms/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
-}
 export async function deletePaymentTerm(id) {
   return request(`/payment-terms/${id}`, { method: 'DELETE' });
 }
@@ -1009,35 +963,12 @@ export async function getTaxes() {
 export async function createTax(payload) {
   return request('/taxes', { method: 'POST', body: JSON.stringify(payload) });
 }
-export async function updateTax(id, payload) {
-  return request(`/taxes/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
-}
 export async function deleteTax(id) {
   return request(`/taxes/${id}`, { method: 'DELETE' });
 }
 
-// Unités de mesure + leurs catégories (uom.category / uom.uom-like) — étape 1 alignement
-// produit/stock Odoo.
-export async function getUnitesMesureCategories() {
-  return request('/unites-mesure-categories');
-}
-export async function createUniteMesureCategorie(payload) {
-  return request('/unites-mesure-categories', { method: 'POST', body: JSON.stringify(payload) });
-}
-export async function deleteUniteMesureCategorie(id) {
-  return request(`/unites-mesure-categories/${id}`, { method: 'DELETE' });
-}
 export async function getUnitesMesure(categorieId) {
   return request(categorieId ? `/unites-mesure?categorieId=${categorieId}` : '/unites-mesure');
-}
-export async function createUniteMesure(payload) {
-  return request('/unites-mesure', { method: 'POST', body: JSON.stringify(payload) });
-}
-export async function updateUniteMesure(id, payload) {
-  return request(`/unites-mesure/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
-}
-export async function deleteUniteMesure(id) {
-  return request(`/unites-mesure/${id}`, { method: 'DELETE' });
 }
 
 // Attributs de produit + leurs valeurs (product.attribute / product.attribute.value-like) —
@@ -1068,9 +999,6 @@ export async function getProduitTemplate(id) {
 export async function createProduitTemplate(payload) {
   return request('/produit-templates', { method: 'POST', body: JSON.stringify(payload) });
 }
-export async function updateProduitTemplate(id, payload) {
-  return request(`/produit-templates/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
-}
 export async function regenererVariantesTemplate(id) {
   return request(`/produit-templates/${id}/regenerer-variantes`, { method: 'POST' });
 }
@@ -1097,9 +1025,6 @@ export async function getAccounts() {
 export async function createAccount(payload) {
   return request('/accounts', { method: 'POST', body: JSON.stringify(payload) });
 }
-export async function updateAccount(id, payload) {
-  return request(`/accounts/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
-}
 export async function deleteAccount(id) {
   return request(`/accounts/${id}`, { method: 'DELETE' });
 }
@@ -1113,9 +1038,6 @@ export async function getFacture(id) {
 }
 export async function createFacture(payload) {
   return request('/factures', { method: 'POST', body: JSON.stringify(payload) });
-}
-export async function updateFacture(id, payload) {
-  return request(`/factures/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
 }
 export async function deleteFacture(id) {
   return request(`/factures/${id}`, { method: 'DELETE' });
@@ -1162,25 +1084,6 @@ export async function getUnallocatedCreditNotes() {
 }
 export async function allocateCreditNote(creditNoteId, payload) {
   return request(`/factures/${creditNoteId}/allocate-credit`, { method: 'POST', body: JSON.stringify(payload) });
-}
-
-// Modifie une fiche client existante (coordonnées mises à jour)
-export async function updatePoulaillerMouvement(id, payload) {
-  return request(`/poulailler/mouvements/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
-}
-
-export async function updateCulturesMouvement(id, payload) {
-  return request(`/cultures/mouvements/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
-}
-
-// Récupère l'historique des modifications/suppressions pour un mouvement Poulailler précis
-export async function getPoulaillerMouvementHistorique(id) {
-  return request(`/poulailler/mouvements/${id}/historique`, { method: 'GET' });
-}
-
-// Récupère l'historique des modifications/suppressions pour un mouvement Cultures précis
-export async function getCulturesMouvementHistorique(id) {
-  return request(`/cultures/mouvements/${id}/historique`, { method: 'GET' });
 }
 
 // Historique global des modifications/suppressions pour Poulailler
@@ -1263,10 +1166,6 @@ export async function getCameras() {
 
 export async function createCamera(payload) {
   return request('/cameras', { method: 'POST', body: JSON.stringify(payload) });
-}
-
-export async function updateCamera(id, payload) {
-  return request(`/cameras/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
 }
 
 // Journal des alertes de mouvement. Les alertes elles-mêmes arrivent par un webhook appelé
@@ -1490,12 +1389,13 @@ export async function creerRole(payload) {
   return request('/roles', { method: 'POST', body: JSON.stringify(payload) });
 }
 
-export async function majRole(id, payload) {
-  return request(`/roles/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
-}
-
 export async function supprimerRole(id) {
   return request(`/roles/${id}`, { method: 'DELETE' });
+}
+
+// Restrictions de l'utilisateur connecté (masquage des écrans non consultables).
+export async function getMesRestrictions() {
+  return request('/roles/mes-restrictions');
 }
 
 export async function enregistrerRestrictions(id, restrictions) {

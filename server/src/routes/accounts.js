@@ -3,11 +3,10 @@
 // l'étape 3). Écritures réservées admin/directeur (même posture que /api/taxes).
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';
-import { requireRole } from '../middleware/requireRole.js';
 import { pool } from '../db.js';
 
 const router = express.Router();
-const ecriture = [authRequired, requireRole('admin', 'directeur')];
+const ecriture = [authRequired];
 
 const ACCOUNT_TYPES = [
   'asset_receivable', 'asset_cash', 'asset_current', 'asset_non_current', 'asset_prepayments',

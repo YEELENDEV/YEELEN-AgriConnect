@@ -4,14 +4,13 @@
 // passe uniquement par ce GET / inline.
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';
-import { requireRole } from '../middleware/requireRole.js';
 import { pool } from '../db.js';
 import banquesService from '../services/banquesService.js';
 
 // Les écritures (création/édition/suppression d'un compte bancaire) sont réservées à
 // admin/directeur — même posture que les écritures financières de business.js. La
 // lecture (GET /) reste ouverte à tous les rôles authentifiés.
-const ecriture = [authRequired, requireRole('admin', 'directeur')];
+const ecriture = [authRequired];
 
 const router = express.Router();
 

@@ -3,12 +3,11 @@
 // ensuite à une ou plusieurs factures. Écritures réservées admin/directeur.
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';
-import { requireRole } from '../middleware/requireRole.js';
 import { pool } from '../db.js';
 import { creerPaiementAutonome, allouerPaiement } from '../utils/accountMove.js';
 
 const router = express.Router();
-const ecriture = [authRequired, requireRole('admin', 'directeur')];
+const ecriture = [authRequired];
 
 // ─── GET /api/paiements?partnerId=&unallocated=1 ───
 router.get('/', authRequired, async (req, res) => {

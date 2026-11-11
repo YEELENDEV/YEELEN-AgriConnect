@@ -9,6 +9,7 @@
 // et n'a rien à voir avec ce fichier.
 import crypto from 'crypto';
 import { env } from '../config/env.js';
+import { extraireIp } from './auditLog.js';
 
 const STEP_MS = 10 * 60 * 1000; // fenêtre de 10 minutes par pas
 const DIGITS = 6;
@@ -59,8 +60,7 @@ export function verifyEmailCode(userId, email, token) {
 // n'est reconnaissable plutôt que des libellés fourre-tout.
 export function requestContext(req) {
   const ua = req?.headers?.['user-agent'] || '';
-  const ip =
-    req?.headers?.['x-forwarded-for']?.split(',')[0]?.trim() || req?.ip || undefined;
+  const ip = extraireIp(req) || undefined;
   const browser =
     /Edg\//.test(ua) ? 'Edge'
     : /OPR\/|Opera/.test(ua) ? 'Opera'

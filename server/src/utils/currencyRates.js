@@ -4,13 +4,14 @@
 // Attribution requise par les conditions d'utilisation : à afficher dès qu'une UI montre un
 // taux/une conversion (pas encore le cas à cette étape, purement backend).
 import { pool } from '../db.js';
+import { DELAI_API_EXTERNE_MS } from '../config/env.js';
 
 const RATES_URL = 'https://open.er-api.com/v6/latest/USD';
 
 export class DeviseInconnueError extends Error {}
 
 export async function rafraichirTauxDuJour() {
-  const response = await fetch(RATES_URL);
+  const response = await fetch(RATES_URL, { signal: AbortSignal.timeout(DELAI_API_EXTERNE_MS) });
   if (!response.ok) throw new Error(`open.er-api.com a répondu ${response.status}`);
   const data = await response.json();
   if (data.result !== 'success' || !data.rates) throw new Error('Réponse open.er-api.com inattendue.');

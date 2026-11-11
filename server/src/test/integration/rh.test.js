@@ -1,4 +1,4 @@
-import { app, pool, request, registerEntreprise, createEmployeeLogin } from './helpers.js';
+import { app, pool, request, registerEntreprise, createEmployeeLogin, restreindreEcritures } from './helpers.js';
 
 afterAll(async () => { await pool.end(); });
 
@@ -25,6 +25,7 @@ describe('RH — référentiels /api/rh', () => {
     expect((list.body.departements || []).map((d) => d.id)).toContain(depId);
 
     const ouvrier = await createEmployeeLogin(admin.token, 'ouvrier');
+    await restreindreEcritures(admin.entrepriseId, ouvrier.email, ['referentiels_rh']);
     const refuse = await request(app).post('/api/rh/departements').set(bearer(ouvrier.token)).send({ nom: 'Pirate' });
     expect(refuse.status).toBe(403);
   });
@@ -113,6 +114,7 @@ describe('RH — avances (admin) et contrats', () => {
 
   test('avance : ouvrier non lié → 403 ; admin → 201', async () => {
     const autre = await createEmployeeLogin(admin.token, 'ouvrier');
+    await restreindreEcritures(admin.entrepriseId, autre.email, ['avances']);
     const refuse = await request(app)
       .post(`/api/salaries/${emp.salarieId}/avances`)
       .set(bearer(autre.token))

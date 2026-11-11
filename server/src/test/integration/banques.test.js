@@ -1,4 +1,4 @@
-import { app, pool, request, registerEntreprise, createEmployeeLogin } from './helpers.js';
+import { app, pool, request, registerEntreprise, createEmployeeLogin, restreindreEcritures } from './helpers.js';
 
 afterAll(async () => { await pool.end(); });
 
@@ -46,6 +46,7 @@ describe('Banques — rôles', () => {
   test('un ouvrier ne peut pas écrire (POST/PUT/DELETE → 403) mais peut lire', async () => {
     const admin = await registerEntreprise();
     const ouvrier = await createEmployeeLogin(admin.token, 'ouvrier');
+    await restreindreEcritures(admin.entrepriseId, ouvrier.email, ['banques']);
     const id = await creerBanque(admin.token);
 
     expect((await request(app).post('/api/banques').set(bearer(ouvrier.token)).send({ nomBanque: 'KO' })).status).toBe(403);
@@ -61,6 +62,7 @@ describe('Banques — compte principal et catégorisation des finances', () => {
   test('PUT /entreprise/banque-principale (admin) ; ouvrier → 403 ; un achat reçu passe alors en catégorie Banque', async () => {
     const admin = await registerEntreprise();
     const ouvrier = await createEmployeeLogin(admin.token, 'ouvrier');
+    await restreindreEcritures(admin.entrepriseId, ouvrier.email, ['banques']);
     const banqueId = await creerBanque(admin.token, 'Ecobank');
 
     const refuse = await request(app).put('/api/entreprise/banque-principale').set(bearer(ouvrier.token)).send({ banqueId });

@@ -1,9 +1,7 @@
 // Le modèle de restrictions : l'application n'apporte aucune politique, l'entreprise écrit la
 // sienne sur une page blanche. Trois règles à garantir — le propriétaire garde tout, un
-// utilisateur sans rôle n'est pas restreint, et une restriction posée par l'entreprise est suivie.
-//
-// Le garde est en mode observation : il journalise au lieu de refuser. La propriété la plus
-// importante de ces tests reste donc « il ne bloque rien ».
+// utilisateur sans rôle n'est pas restreint, et une restriction posée par l'entreprise est
+// APPLIQUÉE (refus 403 depuis la bascule de l'étape 3b, 2026-11-11).
 import { app, pool, request, registerEntreprise, createEmployeeLogin } from './helpers.js';
 import { creerAppariementChemin } from '../../permissions/inventaireRoutes.js';
 import { restrictionsUtilisateur, autoriseUtilisateur, viderCacheRoles } from '../../utils/rolesService.js';
@@ -20,11 +18,25 @@ const idUtilisateur = async (email) => {
 const compter = async (entrepriseId, ressource, action) => {
   const { rows } = await pool.query(
     `SELECT count(*)::int AS n FROM audit_log
-      WHERE entreprise_id = $1 AND action = 'permission_observee'
+      WHERE entreprise_id = $1 AND action IN ('permission_observee', 'permission_refusee')
         AND details->>'ressource' = $2 AND details->>'action' = $3`,
     [entrepriseId, ressource, action]
   );
   return rows[0].n;
+};
+
+// Crée un rôle portant les restrictions données et y rattache l'utilisateur.
+const restreindre = async (entrepriseId, userId, nom, restrictions) => {
+  const { rows: [role] } = await pool.query(
+    'INSERT INTO roles (entreprise_id, nom) VALUES ($1, $2) RETURNING id', [entrepriseId, nom]
+  );
+  for (const [ressource, action] of restrictions) {
+    await pool.query('INSERT INTO role_restrictions (role_id, ressource, action) VALUES ($1, $2, $3)', [role.id, ressource, action]);
+  }
+  await pool.query('UPDATE entreprise_utilisateurs SET role_id = $1 WHERE entreprise_id = $2 AND user_id = $3',
+    [role.id, entrepriseId, userId]);
+  viderCacheRoles();
+  return role.id;
 };
 
 describe('Page blanche', () => {
@@ -165,7 +177,7 @@ describe("L'entreprise écrit sa politique", () => {
   });
 });
 
-describe('Le garde en mode observation', () => {
+describe('Le garde applique les restrictions (mode refus)', () => {
   let admin;
   let employe;
   let roleId;
@@ -173,32 +185,28 @@ describe('Le garde en mode observation', () => {
   beforeAll(async () => {
     admin = await registerEntreprise();
     employe = await createEmployeeLogin(admin.token, 'ouvrier');
-    const { rows: [role] } = await pool.query(
-      "INSERT INTO roles (entreprise_id, nom) VALUES ($1, 'Restreint') RETURNING id",
-      [admin.entrepriseId]
-    );
-    roleId = role.id;
-    await pool.query(
-      "INSERT INTO role_restrictions (role_id, ressource, action) VALUES ($1, 'contacts', 'creer')",
-      [roleId]
-    );
-    await pool.query('UPDATE entreprise_utilisateurs SET role_id = $1 WHERE entreprise_id = $2 AND user_id = $3',
-      [roleId, admin.entrepriseId, await idUtilisateur(employe.email)]);
-    viderCacheRoles();
+    roleId = await restreindre(admin.entrepriseId, await idUtilisateur(employe.email), 'Restreint', [
+      ['contacts', 'creer'],
+      ['devis', 'lire'],
+    ]);
   });
+  beforeEach(() => { viderCacheRoles(); });
 
-  test('il ne bloque rien, même sur une action explicitement retirée', async () => {
+  test('une action retirée est refusée (403) avec un message lisible, et rien n’est créé', async () => {
     const res = await request(app).post('/api/contacts').set(bearer(employe.token))
-      .send({ nom: 'Client malgré restriction', estClient: true });
-    expect(res.status).toBe(201);
+      .send({ nom: 'Client interdit', estClient: true });
+    expect(res.status).toBe(403);
+    expect(res.body).toMatchObject({ reason: 'restriction', ressource: 'contacts', action: 'creer' });
+    expect(res.body.error).toMatch(/Clients et fournisseurs/);
+
+    const { rows } = await pool.query("SELECT count(*)::int AS n FROM contacts WHERE entreprise_id = $1 AND nom = 'Client interdit'", [admin.entrepriseId]);
+    expect(rows[0].n).toBe(0);
   });
 
-  test("il journalise la restriction au lieu de l'appliquer", async () => {
-    await request(app).post('/api/contacts').set(bearer(employe.token))
-      .send({ nom: 'Second client', estClient: true });
-
+  test('le refus est journalisé (permission_refusee) avec le rôle en cause', async () => {
+    await request(app).post('/api/contacts').set(bearer(employe.token)).send({ nom: 'Encore interdit', estClient: true });
     const { rows } = await pool.query(
-      `SELECT details FROM audit_log WHERE entreprise_id = $1 AND action = 'permission_observee'
+      `SELECT details FROM audit_log WHERE entreprise_id = $1 AND action = 'permission_refusee'
         ORDER BY id DESC LIMIT 10`,
       [admin.entrepriseId]
     );
@@ -206,19 +214,118 @@ describe('Le garde en mode observation', () => {
     expect(trouve).toMatchObject({ raison: 'restriction_entreprise', roleId });
   });
 
-  test("ce qui n'est pas retiré ne produit aucune observation", async () => {
+  test('seule l’action retirée est fermée : lire les contacts et créer une observation restent permis', async () => {
+    const lire = await request(app).get('/api/contacts').set(bearer(employe.token));
+    expect(lire.status).toBe(200);
     const avant = await compter(admin.entrepriseId, 'observations', 'creer');
-    const res = await request(app).post('/api/observations').set(bearer(employe.token))
-      .send({ notes: 'Relevé de parcelle' });
-    expect(res.status).toBe(201);
+    const obs = await request(app).post('/api/observations').set(bearer(employe.token)).send({ notes: 'Relevé de parcelle' });
+    expect(obs.status).toBe(201);
     expect(await compter(admin.entrepriseId, 'observations', 'creer')).toBe(avant);
   });
 
-  test('le propriétaire ne déclenche jamais rien', async () => {
+  test('une lecture retirée est refusée, y compris par la recherche globale', async () => {
+    const liste = await request(app).get('/api/devis').set(bearer(employe.token));
+    expect(liste.status).toBe(403);
+
+    // Le propriétaire crée un devis trouvable par son numéro / son client.
+    const contact = await request(app).post('/api/contacts').set(bearer(admin.token)).send({ nom: 'Zebulon Recherche', estClient: true });
+    await request(app).post('/api/devis').set(bearer(admin.token))
+      .send({ clientId: contact.body.contact.id, lignes: [{ produit: 'Maïs', quantite: 1, prixUnitaire: 10, type: 'produit' }] });
+
+    const parEmploye = await request(app).get('/api/recherche?q=Zebulon').set(bearer(employe.token));
+    expect(parEmploye.status).toBe(200);
+    expect(parEmploye.body.devis).toEqual([]);           // lecture des devis retirée
+    expect(parEmploye.body.contacts.length).toBeGreaterThan(0); // lecture des contacts permise
+
+    const parProprietaire = await request(app).get('/api/recherche?q=Zebulon').set(bearer(admin.token));
+    expect(parProprietaire.body.devis.length).toBeGreaterThan(0);
+  });
+
+  test('le propriétaire n’est jamais bloqué ni journalisé', async () => {
     const avant = await compter(admin.entrepriseId, 'contacts', 'creer');
-    await request(app).post('/api/contacts').set(bearer(admin.token))
+    const res = await request(app).post('/api/contacts').set(bearer(admin.token))
       .send({ nom: 'Client du propriétaire', estClient: true });
+    expect(res.status).toBe(201);
     expect(await compter(admin.entrepriseId, 'contacts', 'creer')).toBe(avant);
+  });
+
+  test('PERMISSIONS_MODE=observation : interrupteur de repli, journalise sans refuser', async () => {
+    process.env.PERMISSIONS_MODE = 'observation';
+    try {
+      const res = await request(app).post('/api/contacts').set(bearer(employe.token))
+        .send({ nom: 'Client en observation', estClient: true });
+      expect(res.status).toBe(201);
+    } finally {
+      delete process.env.PERMISSIONS_MODE;
+    }
+  });
+});
+
+describe('GET /api/roles/mes-restrictions', () => {
+  test('renvoie les restrictions de l’utilisateur connecté, même privé de « roles/lire »', async () => {
+    const admin = await registerEntreprise();
+    const employe = await createEmployeeLogin(admin.token, 'ouvrier');
+
+    const libre = await request(app).get('/api/roles/mes-restrictions').set(bearer(employe.token));
+    expect(libre.status).toBe(200);
+    expect(libre.body).toMatchObject({ proprietaire: false, roleId: null, restrictions: {} });
+
+    const roleId = await restreindre(admin.entrepriseId, await idUtilisateur(employe.email), 'Lecture seule partielle', [
+      ['devis', 'lire'], ['devis', 'creer'], ['roles', 'lire'],
+    ]);
+    const restreint = await request(app).get('/api/roles/mes-restrictions').set(bearer(employe.token));
+    expect(restreint.status).toBe(200);
+    expect(restreint.body.roleId).toBe(roleId);
+    expect(restreint.body.roleNom).toBe('Lecture seule partielle');
+    expect(restreint.body.restrictions).toEqual({ devis: ['creer', 'lire'], roles: ['lire'] });
+
+    const proprio = await request(app).get('/api/roles/mes-restrictions').set(bearer(admin.token));
+    expect(proprio.body).toMatchObject({ proprietaire: true, restrictions: {} });
+  });
+});
+
+describe('Compte désactivé', () => {
+  test('le jeton d’un salarié désactivé ne donne plus accès à rien (401), réactivé il refonctionne', async () => {
+    const admin = await registerEntreprise();
+    const employe = await createEmployeeLogin(admin.token, 'ouvrier');
+
+    const avant = await request(app).get('/api/contacts').set(bearer(employe.token));
+    expect(avant.status).toBe(200);
+
+    const desactiver = await request(app).delete(`/api/salaries/${employe.salarieId}`).set(bearer(admin.token));
+    expect(desactiver.status).toBe(200);
+
+    // Même jeton, toujours valide cryptographiquement : refusé immédiatement (cache invalidé).
+    for (const chemin of ['/api/contacts', '/api/auth/me', '/api/salaries/moi']) {
+      const res = await request(app).get(chemin).set(bearer(employe.token));
+      expect(res.status).toBe(401);
+      expect(res.body.reason).toBe('compte_desactive');
+    }
+
+    const reactiver = await request(app).put(`/api/salaries/${employe.salarieId}`).set(bearer(admin.token)).send({ statut: 'Actif' });
+    expect(reactiver.status).toBe(200);
+    const apres = await request(app).get('/api/contacts').set(bearer(employe.token));
+    expect(apres.status).toBe(200);
+  });
+
+  test('le compte propriétaire ne peut pas être désactivé', async () => {
+    const admin = await registerEntreprise();
+    const { rows: [u] } = await pool.query('SELECT id FROM users WHERE email = $1', [admin.email.toLowerCase()]);
+    const { rows: [s] } = await pool.query(
+      "INSERT INTO salaries (entreprise_id, user_id, nom, prenom, statut) VALUES ($1, $2, 'Proprio', 'Test', 'Actif') RETURNING id",
+      [admin.entrepriseId, u.id]
+    );
+    const res = await request(app).delete(`/api/salaries/${s.id}`).set(bearer(admin.token));
+    expect(res.status).toBe(400);
+    const me = await request(app).get('/api/auth/me').set(bearer(admin.token));
+    expect(me.status).toBe(200);
+  });
+});
+
+describe('Lecture des restrictions impossible', () => {
+  test('autoriseUtilisateur refuse une résolution absente ou en erreur (fail closed)', () => {
+    expect(autoriseUtilisateur(null, 'contacts', 'lire')).toBe(false);
+    expect(autoriseUtilisateur({ erreur: true, restrictions: {} }, 'contacts', 'lire')).toBe(false);
   });
 });
 

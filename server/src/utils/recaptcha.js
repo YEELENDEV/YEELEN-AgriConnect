@@ -4,6 +4,8 @@
 // ou avant que l'utilisateur ait créé ses clés Google — même posture que
 // countRecentAuditEvents (une panne d'infra secondaire ne doit jamais bloquer une action
 // principale).
+import { DELAI_API_EXTERNE_MS } from '../config/env.js';
+
 const SITEVERIFY_URL = 'https://www.google.com/recaptcha/api/siteverify';
 const SEUIL_SCORE = 0.5;
 
@@ -15,6 +17,7 @@ export async function verifierRecaptcha(token, actionAttendue = 'register') {
   try {
     const res = await fetch(SITEVERIFY_URL, {
       method: 'POST',
+      signal: AbortSignal.timeout(DELAI_API_EXTERNE_MS),
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({ secret, response: token }),
     });

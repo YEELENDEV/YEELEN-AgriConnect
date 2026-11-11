@@ -60,12 +60,8 @@
     "type": "Type"
   },
   "role": {
-    "admin": "Administrateur",
-    "directeur": "Directeur",
-    "gestionnaire": "Gestionnaire",
-    "comptable": "Comptable",
-    "assistant_direction": "Assistant(e) de direction",
-    "ouvrier": "Ouvrier"
+    "proprietaire": "Propriétaire",
+    "sansRole": "Aucun rôle"
   },
   "shell": {
     "manageOptions": "Gérer les options",
@@ -111,6 +107,7 @@
     "password": "Mot de passe",
     "confirmPassword": "Confirmez le mot de passe",
     "passwordMismatch": "Les mots de passe ne correspondent pas.",
+    "passwordRule": "Le mot de passe doit contenir au moins 8 caractères, dont une lettre et un chiffre.",
     "companyName": "Nom de votre entreprise",
     "activityName": "Votre nom ou celui de votre activité (optionnel)",
     "companyNamePlaceholder": "Ex. Ferme Diallo SARL",
@@ -2427,6 +2424,8 @@
     "mfaChooseMethod": "Choisissez votre méthode de vérification :",
     "mfaEnable": "Activer la vérification en deux étapes",
     "mfaDisable": "Désactiver la vérification en deux étapes",
+    "mfaDisablePassword": "Mot de passe actuel (requis pour désactiver)",
+    "mfaDisablePasswordRequired": "Saisissez votre mot de passe actuel pour désactiver la vérification en deux étapes.",
     "mfaEnabled": "Authentification à deux facteurs activée.",
     "mfaDisabled": "Authentification à deux facteurs désactivée.",
     "mfaMethodActive": "Méthode active : {{method}}.",

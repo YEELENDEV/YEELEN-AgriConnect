@@ -1,4 +1,4 @@
-import { app, pool, request, registerEntreprise, createEmployeeLogin, createClient, uniqueEmail } from './helpers.js';
+import { app, pool, request, registerEntreprise, createEmployeeLogin, createClient, uniqueEmail, restreindreEcritures } from './helpers.js';
 import { generateEmailCode } from '../../utils/mfaCode.js';
 
 afterAll(async () => { await pool.end(); });
@@ -96,10 +96,11 @@ describe('Auth — register / login', () => {
   });
 });
 
-describe('Rôles — requireRole', () => {
-  test("un ouvrier ne peut pas créer d'écriture financière (POST /api/business/finances → 403)", async () => {
+describe('Rôles — restriction posée par l’entreprise', () => {
+  test("un salarié dont le rôle retire les écritures financières reçoit 403 (POST /api/business/finances)", async () => {
     const admin = await registerEntreprise();
     const ouvrier = await createEmployeeLogin(admin.token, 'ouvrier');
+    await restreindreEcritures(admin.entrepriseId, ouvrier.email, ['finances']);
 
     const asAdmin = await request(app)
       .post('/api/business/finances')

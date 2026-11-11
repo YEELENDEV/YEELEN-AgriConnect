@@ -1,6 +1,5 @@
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';
-import { requireRole } from '../middleware/requireRole.js';
 import { pool } from '../db.js';
 import { logAuditEvent } from '../utils/auditLog.js';
 import { MODULES_TARIFES, calculerPrixUSD } from '../utils/tarificationModules.js';
@@ -29,7 +28,7 @@ router.get('/', authRequired, async (req, res) => {
   }
 });
 
-router.put('/', authRequired, requireRole('admin'), async (req, res) => {
+router.put('/', authRequired, async (req, res) => {
   const { nom, siret, adresse, secteur, devise, locale, ville, latitude, longitude, telephone, pays, numeroTva, fuseau } = req.body;
   try {
     // Le fuseau sert à dater les pièces (fonction SQL date_entreprise) : une valeur invalide
@@ -89,7 +88,7 @@ router.get('/banque-principale', authRequired, async (req, res) => {
 });
 
 // Définit le compte bancaire principal, réservé à l'admin
-router.put('/banque-principale', authRequired, requireRole('admin'), async (req, res) => {
+router.put('/banque-principale', authRequired, async (req, res) => {
   const { banqueId } = req.body;
   try {
     await pool.query(
@@ -133,7 +132,7 @@ router.get('/onboarding-status', authRequired, async (req, res) => {
 });
 
 // Réservé à admin/directeur : ce sont eux qui confirment que la config est volontairement incomplète.
-router.put('/onboarding-status', authRequired, requireRole('admin', 'directeur'), async (req, res) => {
+router.put('/onboarding-status', authRequired, async (req, res) => {
   const { banqueNonRequise, salarieNonRequis } = req.body;
   try {
     await pool.query(
@@ -167,7 +166,7 @@ router.get('/modules', authRequired, async (req, res) => {
   }
 });
 
-router.put('/modules', authRequired, requireRole('admin', 'directeur'), async (req, res) => {
+router.put('/modules', authRequired, async (req, res) => {
   const { modules } = req.body;
   if (!modules || typeof modules !== 'object' || Array.isArray(modules)) {
     return res.status(400).json({ error: 'modules doit être un objet { cle: booléen }.' });

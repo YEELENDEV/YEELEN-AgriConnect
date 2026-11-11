@@ -4,11 +4,10 @@
 // Écritures réservées admin/directeur (même posture que /api/taxes, /api/accounts).
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';
-import { requireRole } from '../middleware/requireRole.js';
 import { pool } from '../db.js';
 
 const router = express.Router();
-const ecriture = [authRequired, requireRole('admin', 'directeur')];
+const ecriture = [authRequired];
 
 const COLUMNS = `
   u.id, u.entreprise_id AS "entrepriseId", u.categorie_id AS "categorieId", c.nom AS "categorieNom",

@@ -60,12 +60,8 @@
     "type": "Type"
   },
   "role": {
-    "admin": "Administrator",
-    "directeur": "Director",
-    "gestionnaire": "Manager",
-    "comptable": "Accountant",
-    "assistant_direction": "Executive assistant",
-    "ouvrier": "Worker"
+    "proprietaire": "Owner",
+    "sansRole": "No role"
   },
   "shell": {
     "manageOptions": "Manage options",
@@ -111,6 +107,7 @@
     "password": "Password",
     "confirmPassword": "Confirm password",
     "passwordMismatch": "Passwords do not match.",
+    "passwordRule": "Password must be at least 8 characters long and include a letter and a digit.",
     "companyName": "Your business name",
     "activityName": "Your name or your farm's name (optional)",
     "companyNamePlaceholder": "e.g. Green Valley Farm Ltd",
@@ -2427,6 +2424,8 @@
     "mfaChooseMethod": "Choose your verification method:",
     "mfaEnable": "Enable two-step verification",
     "mfaDisable": "Disable two-step verification",
+    "mfaDisablePassword": "Current password (required to disable)",
+    "mfaDisablePasswordRequired": "Enter your current password to disable two-step verification.",
     "mfaEnabled": "Two-factor authentication enabled.",
     "mfaDisabled": "Two-factor authentication disabled.",
     "mfaMethodActive": "Active method: {{method}}.",

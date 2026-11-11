@@ -7,7 +7,7 @@
 //   - la résolution de l'emplacement interne ne dépend PAS de l'ordre des lignes : dès qu'une
 //     entreprise a deux entrepôts, une réception d'achat doit atterrir dans celui marqué par
 //     défaut, pas dans le premier venu. Ce défaut-là n'aurait levé aucune erreur.
-import { app, pool, request, registerEntreprise, createProduit, createEmployeeLogin } from './helpers.js';
+import { app, pool, request, registerEntreprise, createProduit, createEmployeeLogin, restreindreEcritures } from './helpers.js';
 
 afterAll(async () => { await pool.end(); });
 
@@ -114,7 +114,8 @@ describe('Emplacements de stock — CRUD des internes', () => {
     const doublon = await request(app).post('/api/emplacements-stock').set(bearer(admin.token)).send({ nom: 'Silo unique' });
     expect(doublon.status).toBe(409);
 
-    const ouvrier = await createEmployeeLogin(admin.token, { role: 'ouvrier' });
+    const ouvrier = await createEmployeeLogin(admin.token, 'ouvrier');
+    await restreindreEcritures(admin.entrepriseId, ouvrier.email, ['emplacements_stock']);
     const interdit = await request(app).post('/api/emplacements-stock').set(bearer(ouvrier.token)).send({ nom: 'Silo ouvrier' });
     expect(interdit.status).toBe(403);
     const lecture = await request(app).get('/api/emplacements-stock').set(bearer(ouvrier.token));

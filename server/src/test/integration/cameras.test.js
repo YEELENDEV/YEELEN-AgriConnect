@@ -1,4 +1,4 @@
-import { app, pool, request, registerEntreprise, createEmployeeLogin } from './helpers.js';
+import { app, pool, request, registerEntreprise, createEmployeeLogin, restreindreEcritures } from './helpers.js';
 
 afterAll(async () => { await pool.end(); });
 
@@ -79,6 +79,7 @@ describe('Caméras — registre de surveillance', () => {
 
   test('écriture réservée à admin/directeur, lecture ouverte', async () => {
     const ouvrier = await createEmployeeLogin(admin.token, 'ouvrier');
+    await restreindreEcritures(admin.entrepriseId, ouvrier.email, ['cameras']);
     expect((await request(app).get('/api/cameras').set(bearer(ouvrier.token))).status).toBe(200);
     expect((await request(app).post('/api/cameras').set(bearer(ouvrier.token))
       .send({ nom: 'X', url: 'http://x.test/a.jpg' })).status).toBe(403);

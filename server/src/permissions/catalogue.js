@@ -287,6 +287,7 @@ const HORS_PERIMETRE = {
   'POST /api/mfa/disable': 'sécurité de son propre compte',
 
   'GET /api/salaries/moi': 'son propre dossier RH (self-service)',
+  'GET /api/roles/mes-restrictions': 'lecture de ses propres restrictions (affichage)',
   'GET /api/entreprise/onboarding-status': "état d'accueil, propre à l'utilisateur",
   'PUT /api/entreprise/onboarding-status': "état d'accueil, propre à l'utilisateur",
 
@@ -311,10 +312,10 @@ const HORS_PERIMETRE = {
 
   'GET /api/devises/taux': 'taux de change, donnée de référence sans contenu client',
 
-  // À REVOIR à l'étape 3 : la recherche globale interroge plusieurs ressources d'un coup et
-  // renverrait donc des résultats qu'un rôle restreint ne devrait pas voir. La sortir du
-  // périmètre est provisoire — il faudra filtrer ses résultats selon les permissions.
-  'GET /api/recherche': 'FILTRAGE À FAIRE : voir la note ci-dessus',
+  // La recherche globale interroge plusieurs ressources d'un coup : pas de ressource unique à
+  // lui attribuer. Ses résultats sont filtrés groupe par groupe selon le droit « lire » de
+  // chaque ressource, dans routes/recherche.js (fait à la bascule en refus, 2026-11-11).
+  'GET /api/recherche': 'multi-ressources, résultats filtrés par « lire » dans routes/recherche.js',
 };
 
 // Résout la permission exigée par une route. `null` = hors périmètre (jamais soumise aux rôles).

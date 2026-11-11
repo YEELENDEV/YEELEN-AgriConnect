@@ -10,14 +10,13 @@
 // apporter. Ils restent visibles en lecture, ne serait-ce que pour l'écran de stock.
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';
-import { requireRole } from '../middleware/requireRole.js';
 import { pool } from '../db.js';
 
 const router = express.Router();
 
 // Gérer les emplacements est de la configuration, pas une opération de terrain — contrairement
 // au rebut ou à l'inventaire, ouverts à tout rôle. Même posture que les journaux comptables.
-const ecriture = [authRequired, requireRole('admin', 'directeur')];
+const ecriture = [authRequired];
 
 const COLONNES = `
   e.id, e.nom, e.type, e.par_defaut AS "parDefaut", e.parent_id AS "parentId",

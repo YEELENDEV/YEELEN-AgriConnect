@@ -130,7 +130,7 @@ describe('GET /api/precision/ndvi', () => {
       const original = global.fetch;
       global.fetch = async (url) => {
         const u = String(url);
-        if (u.startsWith('http://api.agromonitoring.com/agro/1.0/polygons?')) {
+        if (u.startsWith('https://api.agromonitoring.com/agro/1.0/polygons?')) {
           appelsPolygonesCreation++;
           return { ok: true, status: 200, json: async () => ({ id: 'polyid-abc' }) };
         }

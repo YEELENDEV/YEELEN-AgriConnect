@@ -4,11 +4,13 @@
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';
 import { pool } from '../db.js';
+import { DELAI_API_EXTERNE_MS } from '../config/env.js';
 import { classifierTexture, suggererCultures } from '../utils/solAgronomie.js';
 import { creerPolygone, SuperficieHorsBornesError } from '../utils/agroPolygon.js';
 
 const router = express.Router();
-const NDVI_HISTORY_URL = 'http://api.agromonitoring.com/agro/1.0/ndvi/history';
+// HTTPS obligatoire : la clé AGRO_API_KEY voyage dans l'URL (paramètre appid).
+const NDVI_HISTORY_URL = 'https://api.agromonitoring.com/agro/1.0/ndvi/history';
 const NDVI_HISTORIQUE_JOURS = 90;
 
 const SOILGRIDS_URL = 'https://rest.isric.org/soilgrids/v2.0/properties/query';
@@ -43,7 +45,7 @@ router.get('/sol', authRequired, async (req, res) => {
 
     const params = SOIL_PROPERTIES.map((p) => `property=${p}`).join('&');
     const url = `${SOILGRIDS_URL}?lon=${longitude}&lat=${latitude}&${params}&depth=0-5cm&value=mean`;
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: AbortSignal.timeout(DELAI_API_EXTERNE_MS) });
     if (!response.ok) throw new Error(`SoilGrids a répondu ${response.status}`);
     const data = await response.json();
     const layers = data.properties?.layers || [];
@@ -119,7 +121,10 @@ router.get('/ndvi', authRequired, async (req, res) => {
 
     const end = Math.floor(Date.now() / 1000);
     const start = end - NDVI_HISTORIQUE_JOURS * 86400;
-    const response = await fetch(`${NDVI_HISTORY_URL}?polyid=${polyid}&start=${start}&end=${end}&appid=${appid}`);
+    const response = await fetch(
+      `${NDVI_HISTORY_URL}?polyid=${encodeURIComponent(polyid)}&start=${start}&end=${end}&appid=${encodeURIComponent(appid)}`,
+      { signal: AbortSignal.timeout(DELAI_API_EXTERNE_MS) }
+    );
     if (!response.ok) throw new Error(`Agromonitoring (NDVI) a répondu ${response.status}`);
     const lectures = await response.json();
 

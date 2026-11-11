@@ -22,6 +22,7 @@ import { fileURLToPath } from 'url';
 import { COMPTES_DEFAUT, JOURNAUX_DEFAUT } from '../utils/comptaDefauts.js';
 import { UNITES_MESURE_DEFAUT } from '../utils/unitesMesureDefaut.js';
 import { EMPLACEMENTS_STOCK_DEFAUT } from '../utils/emplacementsStockDefaut.js';
+import { CATEGORIES_PRODUITS_DEFAUT, CONGES_TYPES_DEFAUT, PAYMENT_TERMS_DEFAUT } from '../utils/referentielsDefaut.js';
 
 // Ce script tourne en dehors du serveur Express (invoqué directement via `node
 // src/db/migrate.js`), donc db.js (qui charge son propre .env via un chemin relatif
@@ -2250,20 +2251,8 @@ $fn$ LANGUAGE plpgsql STABLE;
 // que les valeurs DEFAULT historiques de cultures_stocks.categorie/poulailler_stocks.categorie
 // ('Semences' / 'Aliment') — préserve les 7 libellés déjà utilisés dans toute l'app (StocksTab
 // notamment) pour qu'aucune donnée existante ne se retrouve sans catégorie après la fusion.
-const CATEGORIES_PAR_DEFAUT = [
-  { module: 'Cultures', nom: 'Semences', ordre: 0 },
-  { module: 'Cultures', nom: 'Engrais', ordre: 1 },
-  { module: 'Cultures', nom: 'Produits phytosanitaires', ordre: 2 },
-  { module: 'Cultures', nom: 'Autre', ordre: 3 },
-  { module: 'Poulailler', nom: 'Aliment', ordre: 0 },
-  { module: 'Poulailler', nom: 'Œufs', ordre: 1 },
-  { module: 'Poulailler', nom: 'Volailles vivantes', ordre: 2 },
-  { module: 'Poulailler', nom: 'Autre', ordre: 3 },
-  { module: 'Pisciculture', nom: 'Aliment', ordre: 0 },
-  { module: 'Pisciculture', nom: 'Poissons vivants', ordre: 1 },
-  { module: 'Pisciculture', nom: 'Alevins', ordre: 2 },
-  { module: 'Pisciculture', nom: 'Autre', ordre: 3 },
-];
+// Liste importée de utils/referentielsDefaut.js (source partagée avec routes/auth.js).
+const CATEGORIES_PAR_DEFAUT = CATEGORIES_PRODUITS_DEFAUT;
 
 // Fusionne cultures_stocks/poulailler_stocks dans produits, repointe les 4 tables qui
 // référençaient l'une ou l'autre par (stock_module, stock_id), puis renomme (ne supprime pas)
@@ -2961,24 +2950,8 @@ async function migrateTaxeDevisLignesVersAccountTax() {
 // etc.) : elles se contentent de peupler les nouvelles structures à partir de l'existant.
 // Idempotentes : chacune ne touche que les lignes pas encore migrées.
 
-const CONGES_TYPES_DEFAUT = [
-  { nom: 'Congés payés', paye: true, justificatif_requis: false, couleur: '#3F6B3B', ordre: 1 },
-  { nom: 'Maladie', paye: true, justificatif_requis: true, couleur: '#C1861F', ordre: 2 },
-  { nom: 'Sans solde', paye: false, justificatif_requis: false, couleur: '#5B6357', ordre: 3 },
-  { nom: 'Événement familial', paye: true, justificatif_requis: false, couleur: '#2E6E8E', ordre: 4 },
-];
-
-// Conditions de paiement par défaut (étape 0 Comptabilité). Même liste que
-// PAYMENT_TERMS_DEFAUT dans routes/auth.js (seed à l'inscription).
-const PAYMENT_TERMS_DEFAUT = [
-  { name: 'Paiement immédiat', sequence: 10, lines: [{ value: 'balance', value_amount: 0, delay_type: 'days_after', nb_days: 0, ordre: 0 }] },
-  { name: '30 jours', sequence: 20, lines: [{ value: 'balance', value_amount: 0, delay_type: 'days_after', nb_days: 30, ordre: 0 }] },
-  { name: 'Fin de mois suivant', sequence: 30, lines: [{ value: 'balance', value_amount: 0, delay_type: 'days_after_end_of_month', nb_days: 0, ordre: 0 }] },
-  { name: '30 % à la commande, solde à 30 jours', sequence: 40, lines: [
-    { value: 'percent', value_amount: 30, delay_type: 'days_after', nb_days: 0, ordre: 0 },
-    { value: 'balance', value_amount: 0, delay_type: 'days_after', nb_days: 30, ordre: 1 },
-  ] },
-];
+// CONGES_TYPES_DEFAUT et PAYMENT_TERMS_DEFAUT (conditions de paiement par défaut, étape 0
+// Comptabilité) : importés de utils/referentielsDefaut.js, source partagée avec l'inscription.
 
 // Crée les conditions de paiement par défaut pour toute entreprise qui n'en a aucune.
 async function seedPaymentTermsForExistingEntreprises() {
