@@ -18,8 +18,8 @@ import {
   MapPin
 } from 'lucide-react';
 import {
-  clearToken,
-  getFinances, getMe, getToken, login, register, confirmerInscription, renvoyerCodeInscription, setToken,
+  oublierSession, deconnexion,
+  getFinances, getMe, sessionOuverte, login, register, confirmerInscription, renvoyerCodeInscription, marquerSession,
   getContacts, createContact, updateContact, deleteContact,
   getContactTags, createContactTag, deleteContactTag,
   getRoles,
@@ -9295,7 +9295,7 @@ export default function App() {
     };
 
     const handleAuthExpired = () => {
-      clearToken();
+      oublierSession();
       navigate('/login');
       setUser(null);
     };
@@ -9398,7 +9398,7 @@ export default function App() {
   // Renvoie les restrictions lues (ou null en cas d'échec), pour que la connexion puisse décider
   // de l'écran d'arrivée sans attendre un nouveau rendu.
   const rafraichirRestrictions = useCallback(async () => {
-    if (!getToken()) { setMesRestrictions(null); return null; }
+    if (!sessionOuverte()) { setMesRestrictions(null); return null; }
     try {
       const lues = await getMesRestrictions();
       // Même contenu → même objet : sinon chaque relecture (retour sur l'onglet, 403) recréait
@@ -9418,7 +9418,7 @@ export default function App() {
     if (!user) { setMesRestrictions(null); setRestrictionsPretes(false); }
   }, [user]);
   useEffect(() => {
-    const relire = () => { if (getToken()) rafraichirRestrictions(); };
+    const relire = () => { if (sessionOuverte()) rafraichirRestrictions(); };
     window.addEventListener('agri-restrictions-changed', relire);
     window.addEventListener('focus', relire);
     return () => {
@@ -9429,7 +9429,7 @@ export default function App() {
   const verificateurRestrictions = useMemo(() => creerVerificateur(mesRestrictions), [mesRestrictions]);
   // Basé sur le jeton et non sur `user` : à la restauration de session (rechargement de page),
   // `user` reste null le temps de GET /auth/me alors que l'écran demandé s'affiche déjà.
-  const enAttenteRestrictions = Boolean(getToken()) && !restrictionsPretes;
+  const enAttenteRestrictions = sessionOuverte() && !restrictionsPretes;
   // Libellé affiché dans le menu utilisateur : le rôle DÉFINI PAR L'ENTREPRISE (et non plus
   // l'ancien rôle texte, « Administrateur » sur tous les comptes récents).
   const libelleRole = mesRestrictions?.proprietaire
@@ -9440,7 +9440,8 @@ export default function App() {
   const peutGererModules = (restrictions) => creerVerificateur(restrictions).peut('modules_actifs', 'modifier');
 
   const finalizeAuth = async (authResult) => {
-    setToken(authResult.token);
+    // Le cookie HttpOnly vient d'être posé par le serveur ; on note seulement qu'une session existe.
+    marquerSession();
     const restrictions = await rafraichirRestrictions();
     setUser(authResult.user.email);
     setIsPlatformAdmin(authResult.user.isPlatformAdmin === true);
@@ -9589,8 +9590,7 @@ export default function App() {
   // vers Accueil/Modules comme le faisait l'ancien code avec setScreen/setTab.
   useEffect(() => {
     (async () => {
-      const token = getToken();
-      if (!token) return;
+      if (!sessionOuverte()) return;
       try {
         const { user, entreprise } = await getMe();
         const restrictions = await rafraichirRestrictions();
@@ -9608,7 +9608,7 @@ export default function App() {
           goToScreen('dashboard', 'accueil');
         }
       } catch {
-        clearToken();
+        oublierSession();
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -9659,7 +9659,7 @@ export default function App() {
             showManageOptions={verificateurRestrictions.peut('modules_actifs', 'modifier')}
             onManageOptions={() => { setIsOnboarding(false); goToScreen('modules'); }}
             onSearch={() => setSearchOpen(true)}
-            onLogout={() => { clearToken(); navigate('/login'); setUser(null); setIsPlatformAdmin(false); }}
+            onLogout={async () => { await deconnexion(); navigate('/login'); setUser(null); setIsPlatformAdmin(false); }}
             isOnline={isOnline}
             pendingSyncCount={pendingSyncCount}
             lastSync={lastSync}
@@ -9681,7 +9681,7 @@ export default function App() {
       {screen !== 'login' && billing?.mode === 'locked' && (
         <AbonnementBloque
           billing={billing}
-          onLogout={() => { clearToken(); navigate('/login'); setUser(null); setIsPlatformAdmin(false); setBilling(null); }}
+          onLogout={async () => { await deconnexion(); navigate('/login'); setUser(null); setIsPlatformAdmin(false); setBilling(null); }}
         />
       )}
 

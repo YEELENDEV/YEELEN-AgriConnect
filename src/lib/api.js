@@ -7,17 +7,23 @@ const API_BASE_URL =
 // ─────────────────────────────────────────────────────────────────────
 // Requête HTTP de base avec gestion d'erreur centralisée
 // ─────────────────────────────────────────────────────────────────────
+// Lot 2b : la session voyage dans un cookie HttpOnly posé par le serveur — le JavaScript de la
+// page ne voit jamais le jeton. `credentials: 'include'` envoie ce cookie (l'API est sur un
+// autre port en développement) ; l'en-tête X-Requested-With est la protection CSRF exigée par
+// le serveur pour toute écriture portée par le cookie (voir server/src/middleware/auth.js).
+const ENTETE_SESSION = { 'X-Requested-With': 'AgriConnect' };
+const AVEC_SESSION = { credentials: 'include', headers: ENTETE_SESSION };
+
 async function request(path, options = {}) {
-  const token = getToken();
   const headers = {
     'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...ENTETE_SESSION,
     ...(options.headers || {}),
   };
 
   let response;
   try {
-    response = await fetch(`${API_BASE_URL}${path}`, { ...options, headers });
+    response = await fetch(`${API_BASE_URL}${path}`, { ...options, headers, credentials: 'include' });
   } catch {
     throw new Error('Impossible de contacter le serveur. Vérifiez votre connexion.');
   }
@@ -25,15 +31,15 @@ async function request(path, options = {}) {
   const data = await response.json().catch(() => ({}));
 
   if (response.status === 401) {
-    // Token expiré ou invalide : on force la déconnexion
-    clearToken();
+    // Session expirée, révoquée ou absente : on force la déconnexion
+    oublierSession();
     window.dispatchEvent(new Event('agri-auth-expired'));
     throw new Error(data.error || 'Session expirée. Veuillez vous reconnecter.');
   }
 
   if (response.status === 402) {
     // Abonnement Phase 1 (subscriptionGuard) : accès limité/bloqué, mais l'utilisateur reste
-    // connecté — contrairement au 401, pas de clearToken(). Le shell applicatif écoute cet
+    // connecté — contrairement au 401, pas d'oublierSession(). Le shell applicatif écoute cet
     // événement pour afficher le bandeau/paywall adapté (voir App.jsx).
     window.dispatchEvent(new CustomEvent('agri-subscription-blocked', { detail: data }));
     const message = data.reason === 'suspended'
@@ -56,18 +62,40 @@ async function request(path, options = {}) {
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// Token
+// Session
 // ─────────────────────────────────────────────────────────────────────
-export function getToken() {
-  return localStorage.getItem('agri-token');
-}
-
-export function setToken(token) {
-  localStorage.setItem('agri-token', token);
-}
-
-export function clearToken() {
+// Le jeton n'est plus stocké côté navigateur (lot 2b) : un simple marqueur, sans valeur secrète,
+// dit seulement « une session a été ouverte ici » pour savoir s'il faut appeler /auth/me au
+// chargement. Le serveur reste seul juge : un cookie expiré donne un 401 et efface le marqueur.
+const MARQUEUR_SESSION = 'agri-session';
+try {
+  // Ancien jeton lisible par le JavaScript (avant le lot 2b) : on le supprime. L'utilisateur se
+  // reconnecte une fois et obtient un cookie HttpOnly.
   localStorage.removeItem('agri-token');
+} catch { /* stockage indisponible : rien à nettoyer */ }
+
+export function sessionOuverte() {
+  try { return localStorage.getItem(MARQUEUR_SESSION) === '1'; } catch { return false; }
+}
+
+export function marquerSession() {
+  try { localStorage.setItem(MARQUEUR_SESSION, '1'); } catch { /* sans stockage, /auth/me tranchera */ }
+}
+
+export function oublierSession() {
+  try { localStorage.removeItem(MARQUEUR_SESSION); } catch { /* idem */ }
+}
+
+// Ferme la session de CET appareil : le serveur efface le cookie (inaccessible au JavaScript).
+export async function deconnexion() {
+  try {
+    await request('/auth/deconnexion', { method: 'POST' });
+  } catch {
+    // Hors ligne ou serveur injoignable : on déconnecte quand même l'interface ; le cookie
+    // expirera de lui-même faute d'activité.
+  } finally {
+    oublierSession();
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -94,8 +122,8 @@ export async function renvoyerCodeInscription(email) {
 }
 
 // Lot 2a : mot de passe oublié, liens d'activation/réinitialisation, révocation des sessions.
-// changer-mot-de-passe et deconnecter-autres-appareils renvoient un nouveau jeton (les autres
-// sessions, y compris l'ancien jeton de cet appareil, sont fermées) : on le mémorise aussitôt.
+// changer-mot-de-passe et deconnecter-autres-appareils ferment les autres sessions ; le serveur
+// remplace le cookie de cet appareil dans la même réponse.
 export async function motDePasseOublie(email) {
   return request('/auth/mot-de-passe-oublie', { method: 'POST', body: JSON.stringify({ email }) });
 }
@@ -105,15 +133,11 @@ export async function definirMotDePasse(jeton, password) {
 }
 
 export async function changerMotDePasse(actuel, nouveau) {
-  const data = await request('/auth/changer-mot-de-passe', { method: 'POST', body: JSON.stringify({ actuel, nouveau }) });
-  if (data.token) setToken(data.token);
-  return data;
+  return request('/auth/changer-mot-de-passe', { method: 'POST', body: JSON.stringify({ actuel, nouveau }) });
 }
 
 export async function deconnecterAutresAppareils() {
-  const data = await request('/auth/deconnecter-autres-appareils', { method: 'POST' });
-  if (data.token) setToken(data.token);
-  return data;
+  return request('/auth/deconnecter-autres-appareils', { method: 'POST' });
 }
 
 export async function getMe() {
@@ -1245,10 +1269,7 @@ export async function createMessage(payload) {
 
 // Ouvre le PDF d'un devis dans un nouvel onglet ("Aperçu"), avec authentification
 export async function openDevisPdf(id) {
-  const token = getToken();
-  const response = await fetch(`${API_BASE_URL}/devis/${id}/pdf`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  const response = await fetch(`${API_BASE_URL}/devis/${id}/pdf`, AVEC_SESSION);
   if (!response.ok) throw new Error('Impossible de générer le PDF.');
   const blob = await response.blob();
   const url = URL.createObjectURL(blob);
@@ -1258,10 +1279,7 @@ export async function openDevisPdf(id) {
 // Télécharge le PDF d'un devis en tant que fichier ("PDF"), distinct de l'aperçu ci-dessus
 // qui l'ouvre juste dans un nouvel onglet.
 export async function downloadDevisPdf(id, numero) {
-  const token = getToken();
-  const response = await fetch(`${API_BASE_URL}/devis/${id}/pdf`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  const response = await fetch(`${API_BASE_URL}/devis/${id}/pdf`, AVEC_SESSION);
   if (!response.ok) throw new Error('Impossible de générer le PDF.');
   const blob = await response.blob();
   const url = URL.createObjectURL(blob);
@@ -1278,10 +1296,7 @@ export async function downloadDevisPdf(id, numero) {
 // Le nom vient du Content-Disposition posé par le serveur : une seule source de vérité, et
 // c'est lui qui sait que FAC/2026/0001 doit devenir FAC-2026-0001.pdf.
 export async function getDevisPdfFile(id) {
-  const token = getToken();
-  const response = await fetch(`${API_BASE_URL}/devis/${id}/pdf`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  const response = await fetch(`${API_BASE_URL}/devis/${id}/pdf`, AVEC_SESSION);
   if (!response.ok) throw new Error('Impossible de générer le PDF.');
   const blob = await response.blob();
   const dispo = response.headers.get('content-disposition') || '';
@@ -1304,9 +1319,11 @@ export async function getDevisPublic(token) {
 
 // Signature publique (aucun token d'authentification requis)
 export async function signerDevisPublic(token, signatureData, signataireNom) {
+  // L'en-tête CSRF est nécessaire si la personne qui signe a aussi une session ouverte dans ce
+  // navigateur : le cookie part alors avec la requête, et le serveur exige l'en-tête.
   const response = await fetch(`${API_BASE_URL}/devis/public/${token}/signer`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...ENTETE_SESSION },
     body: JSON.stringify({ signatureData, signataireNom }),
   });
   const data = await response.json();

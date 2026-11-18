@@ -81,8 +81,9 @@ app.use(enTetesSecurite);
 
 // CORS : en production le frontend et l'API partagent le même domaine (Caddy), seules les
 // origines listées dans CORS_ORIGINS (ou FRONTEND_URL) sont acceptées. En développement, toute
-// origine localhost/127.0.0.1 est acceptée (Vite 5173, nginx 8090, preview…). L'API
-// n'utilise pas de cookies (jeton Bearer), donc pas de `credentials`.
+// origine localhost/127.0.0.1 est acceptée (Vite 5173, nginx 8090, preview…). `credentials` :
+// depuis le lot 2b la session du navigateur voyage dans un cookie HttpOnly ; c'est sans danger
+// parce que l'origine renvoyée est toujours celle, vérifiée, de la liste (jamais « * »).
 //
 // exposedHeaders : par défaut, le JavaScript d'une page ne peut lire QUE les en-têtes simples
 // d'une réponse cross-origin — Content-Disposition reste invisible même quand le serveur
@@ -103,7 +104,7 @@ function origineAutorisee(origin, req) {
 app.use(cors((req, callback) => {
   const autorise = origineAutorisee(req.headers.origin, req);
   callback(autorise ? null : new Error("CORS_ORIGINE_REFUSEE"), {
-    origin: autorise, exposedHeaders: ["Content-Disposition"],
+    origin: autorise, credentials: true, exposedHeaders: ["Content-Disposition"],
   });
 }));
 // Limite relevée à 2mb : la photo de contact est envoyée en base64 dans le corps JSON.

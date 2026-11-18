@@ -1,5 +1,5 @@
 import {
-  getToken, setToken, clearToken,
+  sessionOuverte, marquerSession, oublierSession, deconnexion,
   getMe, createContactTag,
   flushOfflineQueue,
 } from './api.js';
@@ -19,24 +19,40 @@ beforeEach(() => {
   setOnline(true);
 });
 
-describe('token', () => {
-  test('set / get / clear via localStorage (clé agri-token)', () => {
-    expect(getToken()).toBeNull();
-    setToken('abc.def');
-    expect(getToken()).toBe('abc.def');
-    expect(localStorage.getItem('agri-token')).toBe('abc.def');
-    clearToken();
-    expect(getToken()).toBeNull();
+describe('session (lot 2b : cookie HttpOnly, aucun jeton côté navigateur)', () => {
+  test('marqueur de session sans valeur secrète', () => {
+    expect(sessionOuverte()).toBe(false);
+    marquerSession();
+    expect(sessionOuverte()).toBe(true);
+    expect(localStorage.getItem('agri-session')).toBe('1');
+    oublierSession();
+    expect(sessionOuverte()).toBe(false);
+  });
+
+  test('deconnexion appelle le serveur et oublie la session, même hors ligne', async () => {
+    marquerSession();
+    fetch.mockResolvedValue(okResponse({ ok: true }));
+    await deconnexion();
+    expect(fetch.mock.calls[0][0]).toMatch(/\/auth\/deconnexion$/);
+    expect(fetch.mock.calls[0][1].method).toBe('POST');
+    expect(sessionOuverte()).toBe(false);
+
+    marquerSession();
+    fetch.mockRejectedValue(new TypeError('offline'));
+    await deconnexion();
+    expect(sessionOuverte()).toBe(false);
   });
 });
 
 describe('request (via getMe)', () => {
-  test('joint le bearer token quand il existe', async () => {
-    setToken('jwt-123');
+  test('envoie le cookie (credentials) et l’en-tête CSRF, jamais d’en-tête Authorization', async () => {
+    marquerSession();
     fetch.mockResolvedValue(okResponse({ user: { id: 1 } }));
     await getMe();
     const [, opts] = fetch.mock.calls[0];
-    expect(opts.headers.Authorization).toBe('Bearer jwt-123');
+    expect(opts.credentials).toBe('include');
+    expect(opts.headers['X-Requested-With']).toBe('AgriConnect');
+    expect(opts.headers.Authorization).toBeUndefined();
     expect(opts.headers['Content-Type']).toBe('application/json');
   });
 
@@ -45,14 +61,14 @@ describe('request (via getMe)', () => {
     await expect(getMe()).rejects.toThrow(/Impossible de contacter le serveur/);
   });
 
-  test('401 → vide le token, émet agri-auth-expired et jette', async () => {
-    setToken('expired');
+  test('401 → oublie la session, émet agri-auth-expired et jette', async () => {
+    marquerSession();
     fetch.mockResolvedValue(okResponse({ error: 'Session expirée.' }, 401));
     const listener = jest.fn();
     window.addEventListener('agri-auth-expired', listener);
 
     await expect(getMe()).rejects.toThrow(/expirée/i);
-    expect(getToken()).toBeNull();
+    expect(sessionOuverte()).toBe(false);
     expect(listener).toHaveBeenCalledTimes(1);
     window.removeEventListener('agri-auth-expired', listener);
   });
@@ -62,21 +78,21 @@ describe('request (via getMe)', () => {
     await expect(getMe()).rejects.toThrow('Champ requis manquant.');
   });
 
-  test('402 (abonnement) → émet agri-subscription-blocked avec le detail, jette, NE vide PAS le token', async () => {
-    setToken('still-valid');
+  test('402 (abonnement) → émet agri-subscription-blocked avec le detail, jette, NE ferme PAS la session', async () => {
+    marquerSession();
     fetch.mockResolvedValue(okResponse({ reason: 'expired', mode: 'locked' }, 402));
     const listener = jest.fn();
     window.addEventListener('agri-subscription-blocked', listener);
 
     await expect(getMe()).rejects.toThrow(/expiré/i);
-    expect(getToken()).toBe('still-valid');
+    expect(sessionOuverte()).toBe(true);
     expect(listener).toHaveBeenCalledTimes(1);
     expect(listener.mock.calls[0][0].detail).toEqual({ reason: 'expired', mode: 'locked' });
     window.removeEventListener('agri-subscription-blocked', listener);
   });
 
   test('402 suspended → message dédié', async () => {
-    setToken('still-valid');
+    marquerSession();
     fetch.mockResolvedValue(okResponse({ reason: 'suspended', mode: 'locked' }, 402));
     await expect(getMe()).rejects.toThrow(/suspendu/i);
   });
