@@ -5,6 +5,41 @@ Extrait de `CLAUDE.md` le 2026-08-28 pour alléger le contexte chargé à chaque
 
 ---
 
+### Lot 2a de l'audit : comptes et sessions — 2026-11-18
+
+Le lot 2 de l'audit (S4, S5, S6) est découpé en deux : **2a** (révocation des sessions, liens
+d'activation et de réinitialisation) ici, **2b** (session par cookie HttpOnly + CSRF) ensuite.
+
+- **S5, révocation** : `users.token_version` ; chaque JWT porte `tv`. `permissionGuard` compare
+  `tv` à la valeur en base (lue avec la résolution des rôles, cache 60 s invalidé par
+  `invaliderCacheUtilisateur`) et répond 401 `reason:'session_revoquee'` en cas d'écart.
+  Nouvelles routes `POST /api/auth/changer-mot-de-passe` (5 échecs/h → 429) et
+  `POST /api/auth/deconnecter-autres-appareils` : elles incrémentent `token_version` et
+  renvoient un nouveau jeton pour l'appareil courant. Définir un mot de passe par lien ferme
+  aussi toutes les sessions.
+- **S6, plus aucun mot de passe par e-mail** : `sendWelcomeEmail` (mot de passe temporaire en
+  clair) supprimé. Table `jetons_compte` (empreinte SHA-256 seulement, usage unique,
+  `utils/jetonsCompte.js`) : activation 72 h, réinitialisation 1 h. Le jeton voyage dans le
+  fragment `#jeton=` (jamais envoyé au serveur, absent des journaux et du Referer).
+  `POST /api/auth/mot-de-passe-oublie` répond toujours `{ok:true}` (pas d'énumération de
+  comptes), travail réel après la réponse, 3 demandes/h par compte.
+  `POST /api/auth/definir-mot-de-passe` consomme le jeton sous verrou.
+- **Comptes salariés** : `POST /api/salaries` et le rattachement par `PUT` n'exigent plus de mot
+  de passe ; sans mot de passe, la réponse contient `acces` (lien, e-mail envoyé ou non).
+  `POST /api/salaries/:id/lien-acces` en crée un nouveau (remplace l'ancien, jamais pour le
+  propriétaire, isolé par entreprise). Un mot de passe fourni par un client d'API reste accepté.
+- **Frontend** : lien « Mot de passe oublié ? » sur la connexion ; page publique
+  `DefinirMotDePasse.jsx` routée dans `main.jsx` (`/activer-compte`,
+  `/reinitialiser-mot-de-passe`) ; carte « Mot de passe et sessions » dans Mes préférences
+  (`SecuriteCompteCard.jsx`) ; dans Salariés, champ « mot de passe temporaire » retiré, lien
+  affiché une fois par `LienAccesModal.jsx` (copie, WhatsApp) et bouton « nouveau lien d'accès ».
+- **Défaut corrigé en passant** : un mauvais mot de passe saisi en étant connecté
+  (`/mfa/disable`, `/auth/changer-mot-de-passe`) renvoyait 401, que `api.js` traite comme une
+  session expirée : l'utilisateur était déconnecté. Désormais 400 `reason:'mot_de_passe_incorrect'`.
+- Tests : `comptes.test.js` (12). Migration : `token_version` + `jetons_compte`.
+
+---
+
 ### Lot 1 de l'audit : urgences — 2026-11-11
 
 - **S2** : images Docker frontend et backend en `node:22-alpine` (Node 20 en fin de vie depuis

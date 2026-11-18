@@ -975,6 +975,27 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS is_platform_admin BOOLEAN NOT NULL DE
 -- 'totp' par défaut : les comptes ayant déjà activé la 2FA (via mfa_secret) sont en TOTP.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_method VARCHAR(10) NOT NULL DEFAULT 'totp';
 
+-- ═══════════════ Comptes : révocation des sessions et liens à usage unique (lot 2a, 2026-11) ═══════════════
+-- token_version : recopié dans chaque jeton de session (claim tv). L'incrémenter invalide
+-- d'un coup toutes les sessions ouvertes de l'utilisateur (changement ou réinitialisation de
+-- mot de passe, « déconnecter mes autres appareils »). 0 par défaut : les jetons émis avant
+-- cette colonne (sans tv, lu comme 0) restent valides, aucune déconnexion forcée au déploiement.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INTEGER NOT NULL DEFAULT 0;
+
+-- Liens d'activation de compte (salarié) et de réinitialisation de mot de passe. Seule
+-- l'empreinte SHA-256 du jeton est stockée : une fuite de la base ne donne aucun lien utilisable.
+CREATE TABLE IF NOT EXISTS jetons_compte (
+  id          SERIAL PRIMARY KEY,
+  user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  objet       VARCHAR(20) NOT NULL CHECK (objet IN ('activation', 'reinitialisation')),
+  token_hash  CHAR(64) NOT NULL UNIQUE,
+  expire_le   TIMESTAMPTZ NOT NULL,
+  utilise_le  TIMESTAMPTZ,
+  cree_par    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_jetons_compte_user ON jetons_compte(user_id);
+
 CREATE TABLE IF NOT EXISTS feedback (
   id            SERIAL PRIMARY KEY,
   entreprise_id INTEGER NOT NULL REFERENCES entreprises(id) ON DELETE CASCADE,

@@ -48,21 +48,37 @@ export async function sendMfaCodeEmail(to, code, context = {}) {
   });
 }
 
-// Envoyé quand un admin crée un compte de connexion pour un employé (EmployeesModule,
-// option "Créer un compte de connexion") — communique le mot de passe temporaire en
-// clair par email, à charge pour l'employé de le changer à la première connexion.
-export async function sendWelcomeEmail(to, tempPassword, prenom) {
+// Envoyé quand l'entreprise crée un compte de connexion pour un salarié, ou lui renvoie un
+// accès. Ne contient AUCUN mot de passe (avant le lot 2a, le mot de passe temporaire partait
+// en clair par email) : un lien à usage unique, valable 72 h, où le salarié choisit le sien.
+export async function sendActivationEmail(to, prenom, entrepriseNom, lien) {
   await transporter.sendMail({
     from: `"YEELEN AgriConnect" <${process.env.EMAIL_USER}>`,
     to,
-    subject: 'Votre accès à YEELEN AgriConnect',
+    subject: 'Activez votre accès à YEELEN AgriConnect',
     html: `
       <div style="font-family: sans-serif; padding: 20px;">
-        <h2>Bienvenue ${h(prenom)},</h2>
-        <p>Un compte a été créé pour vous sur YEELEN AgriConnect.</p>
-        <p>Email de connexion : <strong>${h(to)}</strong></p>
-        <p>Mot de passe temporaire : <strong>${h(tempPassword)}</strong></p>
-        <p style="color: #888; font-size: 13px;">Pensez à le changer dès votre première connexion.</p>
+        <h2>Bonjour ${h(prenom)},</h2>
+        <p>${h(entrepriseNom || 'Votre entreprise')} vous a ouvert un accès à YEELEN AgriConnect, avec l'adresse <strong>${h(to)}</strong>.</p>
+        <p><a href="${h(lien)}" style="display:inline-block; padding:12px 24px; background:#3F6B3B; color:#fff; text-decoration:none; border-radius:8px;">Choisir mon mot de passe</a></p>
+        <p style="color: #888; font-size: 13px;">Ce lien est personnel, fonctionne une seule fois et expire dans 72 heures.</p>
+      </div>
+    `,
+  });
+}
+
+// Envoyé sur demande « mot de passe oublié ». Lien à usage unique valable 1 heure.
+export async function sendReinitialisationEmail(to, lien) {
+  await transporter.sendMail({
+    from: `"YEELEN AgriConnect" <${process.env.EMAIL_USER}>`,
+    to,
+    subject: 'Réinitialisation de votre mot de passe',
+    html: `
+      <div style="font-family: sans-serif; padding: 20px;">
+        <h2>YEELEN AgriConnect</h2>
+        <p>Une réinitialisation du mot de passe a été demandée pour le compte <strong>${h(to)}</strong>.</p>
+        <p><a href="${h(lien)}" style="display:inline-block; padding:12px 24px; background:#3F6B3B; color:#fff; text-decoration:none; border-radius:8px;">Choisir un nouveau mot de passe</a></p>
+        <p style="color: #888; font-size: 13px;">Ce lien fonctionne une seule fois et expire dans 1 heure. Si vous n'êtes pas à l'origine de cette demande, ignorez cet email : votre mot de passe actuel reste valable.</p>
       </div>
     `,
   });

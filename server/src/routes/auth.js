@@ -14,7 +14,9 @@ import { logAuditEvent, getAuditLog, countRecentAuditEvents, countRecentAuditEve
 import { TRIAL_DAYS } from '../config/abonnement.js';
 import { verifierRecaptcha } from '../utils/recaptcha.js';
 import { generateEmailCode, verifyEmailCode, requestContext } from '../utils/mfaCode.js';
-import { sendMfaCodeEmail, sendInscriptionCodeEmail } from '../services/mailer.js';
+import { sendMfaCodeEmail, sendInscriptionCodeEmail, sendReinitialisationEmail } from '../services/mailer.js';
+import { creerJetonCompte, consommerJetonCompte, lienCompte, purgerJetonsCompte } from '../utils/jetonsCompte.js';
+import { invaliderCacheUtilisateur } from '../utils/rolesService.js';
 import { COMPTES_DEFAUT, JOURNAUX_DEFAUT } from '../utils/comptaDefauts.js';
 import { UNITES_MESURE_DEFAUT } from '../utils/unitesMesureDefaut.js';
 import { EMPLACEMENTS_STOCK_DEFAUT } from '../utils/emplacementsStockDefaut.js';
@@ -261,7 +263,7 @@ router.post('/confirmer-inscription', async (req, res) => {
 
   try {
     const result = await pool.query(
-      `SELECT u.id, u.email, u.created_at, u.is_platform_admin, eu.entreprise_id, eu.role,
+      `SELECT u.id, u.email, u.created_at, u.is_platform_admin, u.token_version, eu.entreprise_id, eu.role,
               e.nom AS entreprise_nom, e.type_compte, e.devise, e.locale, e.fuseau, e.email_confirme
        FROM users u
        JOIN entreprise_utilisateurs eu ON eu.user_id = u.id AND eu.statut = 'Actif'
@@ -292,7 +294,7 @@ router.post('/confirmer-inscription', async (req, res) => {
     await logAuditEvent({ entrepriseId: row.entreprise_id, userId: row.id, email: row.email, action: 'inscription_confirmee', req });
 
     const isPlatformAdmin = row.is_platform_admin === true;
-    const token = signerToken({ sub: row.id, email: row.email, entrepriseId: row.entreprise_id, role: row.role, isPlatformAdmin });
+    const token = signerToken({ sub: row.id, email: row.email, entrepriseId: row.entreprise_id, role: row.role, isPlatformAdmin, tv: row.token_version });
     return res.json({
       token,
       user: { id: row.id, email: row.email, role: row.role, createdAt: row.created_at, isPlatformAdmin },
@@ -490,7 +492,7 @@ router.post('/login', async (req, res) => {
     // Le JWT porte entrepriseId/role/isPlatformAdmin en dur : une bascule de rôle ou du
     // flag is_platform_admin en base ne prend effet qu'à la prochaine connexion, pas en
     // temps réel sur un token déjà émis (voir requirePlatformAdmin.js).
-    const token = signerToken({ sub: user.id, email: user.email, entrepriseId, role, isPlatformAdmin });
+    const token = signerToken({ sub: user.id, email: user.email, entrepriseId, role, isPlatformAdmin, tv: user.token_version });
 
     await logAuditEvent({ entrepriseId, userId: user.id, email: user.email, action: 'login_success', req });
 
@@ -502,6 +504,129 @@ router.post('/login', async (req, res) => {
   } catch (err) {
     console.error('[login]', err);
     return res.status(500).json({ error: 'Erreur serveur lors de la connexion.' });
+  }
+});
+
+// ─── POST /api/auth/mot-de-passe-oublie ────────────────────────────────────
+// Réponse identique et IMMÉDIATE que le compte existe ou non : ni le message ni le temps de
+// réponse ne doivent permettre de savoir si une adresse a un compte. Le travail réel (jeton,
+// email) se fait après l'envoi de la réponse. 3 demandes par heure et par compte au plus.
+router.post('/mot-de-passe-oublie', async (req, res) => {
+  const { email } = req.body || {};
+  if (validerEmail(email)) return res.status(400).json({ error: 'Adresse email invalide.' });
+  res.json({ ok: true });
+
+  try {
+    const { rows } = await pool.query(
+      `SELECT u.id, u.email, eu.entreprise_id
+         FROM users u
+         JOIN entreprise_utilisateurs eu ON eu.user_id = u.id AND eu.statut = 'Actif'
+        WHERE LOWER(u.email) = LOWER($1)
+        LIMIT 1`,
+      [email]
+    );
+    const u = rows[0];
+    if (!u) return; // compte inconnu ou désactivé : rien à faire, et rien à dire
+    if (await countRecentAuditEvents(u.email, ['reinitialisation_demandee'], 60) >= 3) return;
+    await purgerJetonsCompte();
+    const jeton = await creerJetonCompte(pool, { userId: u.id, objet: 'reinitialisation' });
+    await logAuditEvent({ entrepriseId: u.entreprise_id, userId: u.id, email: u.email, action: 'reinitialisation_demandee', req });
+    await sendReinitialisationEmail(u.email, lienCompte('reinitialisation', jeton));
+  } catch (err) {
+    console.error('[mot-de-passe-oublie]', err.message);
+  }
+});
+
+// ─── POST /api/auth/definir-mot-de-passe ───────────────────────────────────
+// Point d'arrivée des deux liens à usage unique (activation d'un compte salarié, mot de passe
+// oublié). Définir le mot de passe ferme toutes les sessions déjà ouvertes du compte.
+router.post('/definir-mot-de-passe', async (req, res) => {
+  const { jeton, password } = req.body || {};
+  const erreurMdp = validerMotDePasse(password);
+  if (erreurMdp) return res.status(400).json({ error: erreurMdp });
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const consomme = await consommerJetonCompte(client, jeton);
+    if (!consomme) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: 'Ce lien est invalide, expiré ou a déjà servi. Demandez-en un nouveau.', reason: 'jeton_invalide' });
+    }
+    const hash = await bcrypt.hash(password, BCRYPT_COUT);
+    const { rows } = await client.query(
+      'UPDATE users SET password = $1, token_version = token_version + 1 WHERE id = $2 RETURNING email',
+      [hash, consomme.userId]
+    );
+    await client.query('COMMIT');
+    invaliderCacheUtilisateur(consomme.userId);
+    await logAuditEvent({
+      userId: consomme.userId, email: rows[0].email, req,
+      action: consomme.objet === 'activation' ? 'compte_active' : 'mot_de_passe_reinitialise',
+    });
+    return res.json({ ok: true, email: rows[0].email });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[definir-mot-de-passe]', err);
+    return res.status(500).json({ error: 'Erreur lors de la définition du mot de passe.' });
+  } finally {
+    client.release();
+  }
+});
+
+// Nouvelle version de session pour l'utilisateur connecté : toutes ses autres sessions sont
+// fermées ; la session courante reçoit un jeton neuf pour continuer sans se reconnecter.
+async function revoquerAutresSessions(req, nouveauHash = null) {
+  const { rows } = await pool.query(
+    `UPDATE users SET token_version = token_version + 1${nouveauHash ? ', password = $2' : ''}
+      WHERE id = $1 RETURNING token_version`,
+    nouveauHash ? [req.user.sub, nouveauHash] : [req.user.sub]
+  );
+  invaliderCacheUtilisateur(req.user.sub);
+  const { sub, email, entrepriseId, role, isPlatformAdmin } = req.user;
+  return signerToken({ sub, email, entrepriseId, role, isPlatformAdmin, tv: rows[0].token_version });
+}
+
+// ─── POST /api/auth/changer-mot-de-passe ───────────────────────────────────
+// N'existait pas avant le lot 2a, alors que l'email de bienvenue demandait de changer le mot
+// de passe « dès la première connexion ». Exige le mot de passe actuel.
+router.post('/changer-mot-de-passe', authRequired, async (req, res) => {
+  const { actuel, nouveau } = req.body || {};
+  if (!actuel || typeof actuel !== 'string') return res.status(400).json({ error: 'Mot de passe actuel requis.' });
+  const erreurMdp = validerMotDePasse(nouveau);
+  if (erreurMdp) return res.status(400).json({ error: erreurMdp });
+  if (actuel === nouveau) return res.status(400).json({ error: 'Le nouveau mot de passe doit être différent de l’actuel.' });
+  try {
+    const { rows } = await pool.query('SELECT email, password FROM users WHERE id = $1', [req.user.sub]);
+    if (!rows[0]) return res.status(404).json({ error: 'Utilisateur introuvable.' });
+    const { email } = rows[0];
+    if (await countRecentAuditEvents(email, ['changement_mdp_echoue'], 60) >= 5) {
+      return res.status(429).json({ error: 'Trop de tentatives. Réessayez dans une heure.' });
+    }
+    if (!(await bcrypt.compare(actuel, rows[0].password))) {
+      await logAuditEvent({ entrepriseId: req.user.entrepriseId, userId: req.user.sub, email, action: 'changement_mdp_echoue', req });
+      // 400 et non 401 : côté interface, un 401 vaut « session expirée » et déconnecte.
+      return res.status(400).json({ error: 'Mot de passe actuel incorrect.', reason: 'mot_de_passe_incorrect' });
+    }
+    const token = await revoquerAutresSessions(req, await bcrypt.hash(nouveau, BCRYPT_COUT));
+    await logAuditEvent({ entrepriseId: req.user.entrepriseId, userId: req.user.sub, email, action: 'mot_de_passe_change', req });
+    return res.json({ ok: true, token });
+  } catch (err) {
+    console.error('[changer-mot-de-passe]', err);
+    return res.status(500).json({ error: 'Erreur lors du changement de mot de passe.' });
+  }
+});
+
+// ─── POST /api/auth/deconnecter-autres-appareils ───────────────────────────
+// Téléphone perdu, ordinateur partagé : ferme toutes les autres sessions du compte.
+router.post('/deconnecter-autres-appareils', authRequired, async (req, res) => {
+  try {
+    const token = await revoquerAutresSessions(req);
+    await logAuditEvent({ entrepriseId: req.user.entrepriseId, userId: req.user.sub, email: req.user.email, action: 'sessions_revoquees', req });
+    return res.json({ ok: true, token });
+  } catch (err) {
+    console.error('[deconnecter-autres-appareils]', err);
+    return res.status(500).json({ error: 'Erreur lors de la déconnexion des autres appareils.' });
   }
 });
 

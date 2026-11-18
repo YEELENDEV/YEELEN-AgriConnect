@@ -6,6 +6,7 @@ import './i18n'
 import { LocaleProvider } from './lib/locale.jsx'
 import App from './App.jsx'
 import DevisPublicView from './components/DevisPublicView.jsx'
+import DefinirMotDePasse from './components/DefinirMotDePasse.jsx'
 
 // Lien public envoyé par email (voir server/src/routes/devis.js POST /:id/envoyer,
 // lienConsultation = `${FRONTEND_URL}/devis/${token}`) — rendu à part de <App/>, jamais
@@ -16,6 +17,9 @@ import DevisPublicView from './components/DevisPublicView.jsx'
 function Root() {
   const match = window.location.pathname.match(/^\/devis\/([^/]+)$/);
   if (match) return <DevisPublicView token={match[1]} />;
+  // Liens d'activation / réinitialisation envoyés par email (lot 2a, voir utils/jetonsCompte.js).
+  if (window.location.pathname === '/activer-compte') return <DefinirMotDePasse objet="activation" />;
+  if (window.location.pathname === '/reinitialiser-mot-de-passe') return <DefinirMotDePasse objet="reinitialisation" />;
   return <App />;
 }
 

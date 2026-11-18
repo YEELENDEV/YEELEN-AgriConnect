@@ -116,7 +116,8 @@ app.use(express.json({ limit: "2mb" }));
 // de page) ne doit pas consommer ce quota, sinon des collègues derrière une même IP
 // (box partagée, NAT d'opérateur mobile) se bloqueraient mutuellement.
 app.use(
-  ["/api/auth/login", "/api/auth/register", "/api/auth/confirmer-inscription", "/api/auth/renvoyer-code-inscription"],
+  ["/api/auth/login", "/api/auth/register", "/api/auth/confirmer-inscription", "/api/auth/renvoyer-code-inscription",
+   "/api/auth/mot-de-passe-oublie", "/api/auth/definir-mot-de-passe"],
   creerLimiteur({
     prefixe: "auth", fenetreMs: 15 * 60_000, max: 50,
     message: "Trop de tentatives depuis cette adresse. Réessayez dans quelques minutes.",

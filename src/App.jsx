@@ -10,7 +10,7 @@ import { RestrictionsContext, useRestrictions, creerVerificateur, ongletVisible,
 import {
   Sprout, Droplet, Thermometer, Egg, ShoppingCart, Truck, Wallet, LogOut,
   Plus, Trash2, ToggleLeft, ToggleRight, Package, TrendingUp,
-  ChevronRight, ChevronLeft, Check, Lock, Mail, Loader2, Leaf, Bird,
+  ChevronRight, ChevronLeft, Check, Lock, KeyRound, Mail, Loader2, Leaf, Bird,
   ClipboardList, ArrowUpCircle, ArrowDownCircle, AlertTriangle, Home, GripVertical,
   Search, FileText, Download, Users, Briefcase, Landmark, Bell,
   CalendarDays, Settings, Settings2, MessageSquare, HelpCircle, Wrench, History,
@@ -35,7 +35,7 @@ import {
   getPoulaillerLivraisons, createPoulaillerLivraison, updatePoulaillerLivraison, deletePoulaillerLivraison,
   getPoulaillerSuivi, createPoulaillerSuivi,
   setupMfa, verifyMfa, disableMfa, resendMfaEmail,
-  getSalaries, createSalarie, updateSalarie, deleteSalarie,
+  getSalaries, createSalarie, updateSalarie, deleteSalarie, creerLienAcces,
   getPostes, getDepartements,
   getPoulaillerHistorique, getCulturesHistorique,
   getPiscicultureLivraisons, createPiscicultureLivraison, updatePiscicultureLivraison, deletePiscicultureLivraison,
@@ -56,7 +56,7 @@ import {
   getCalendarEvents, createCalendarEvent, updateCalendarEvent, getRecoltes, createRecolte, updateRecolte, deleteRecolte,
   getOnboardingStatus, updateOnboardingStatus, updateEntreprise, getEntreprise,
   getModulesActifs, updateModulesActifs, getTarifsModules, getMesRestrictions,
-  getBillingStatus,
+  getBillingStatus, motDePasseOublie,
   rechercherVilleMeteo, getMeteo, getParcellesLocalisees, getAnalyseSol, getNdvi,
 } from './lib/api';
 import { getRecaptchaToken } from './lib/recaptcha.js';
@@ -65,6 +65,8 @@ import AbonnementBloque from './components/AbonnementBloque';
 const MeteoModule = lazy(() => import('./components/MeteoModule'));
 const SurveillanceModule = lazy(() => import('./components/SurveillanceModule'));
 import MeteoWidget from './components/MeteoWidget';
+import LienAccesModal from './components/LienAccesModal.jsx';
+import SecuriteCompteCard from './components/SecuriteCompteCard.jsx';
 import { Badge, Button, Card, DataTable, Field, GaugeDial, MentionSimulation, MiniChart, Select, ToastContainer, notifyError, notifySuccess } from './components/ui.jsx';
 const ObservationListView = lazy(() => import('./components/ObservationListView').then((m) => ({ default: m.ObservationListView })));
 const RegistreIntrantsView = lazy(() => import('./components/RegistreIntrantsView').then((m) => ({ default: m.RegistreIntrantsView })));
@@ -5529,6 +5531,8 @@ function LoginScreen({ onAuth, onConfirmerInscription, onRenvoyerCodeInscription
   const [confirmationEmail, setConfirmationEmail] = useState('');
   const [confirmationCode, setConfirmationCode] = useState('');
   const [resendMsg, setResendMsg] = useState('');
+  const [oubli, setOubli] = useState(false);
+  const [oubliEnvoye, setOubliEnvoye] = useState(false);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -5650,6 +5654,61 @@ function LoginScreen({ onAuth, onConfirmerInscription, onRenvoyerCodeInscription
             <div style={{ fontSize: TEXT.base, color: COLORS.inkSoft, marginTop: SPACE.sm, textAlign: 'center' }}>
               <button type="button" onClick={() => { setConfirmationStep(false); setConfirmationCode(''); setError(''); setResendMsg(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.green, fontWeight: 600, fontSize: TEXT.base }}>
                 {t('common.back')}
+              </button>
+            </div>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  // « Mot de passe oublié » (lot 2a) : même mise en page que l'étape MFA. Le message de
+  // confirmation est le même que l'adresse ait un compte ou non (le serveur aussi).
+  if (oubli) {
+    const envoyerOubli = async (e) => {
+      e.preventDefault();
+      if (busy) return;
+      setBusy(true);
+      setError('');
+      try {
+        await motDePasseOublie(email);
+        setOubliEnvoye(true);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setBusy(false);
+      }
+    };
+    return (
+      <div style={{ minHeight: 520, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 16px' }}>
+        <div style={{ width: '100%', maxWidth: 380 }}>
+          <Card>
+            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, fontSize: TEXT.md, marginBottom: 3 }}>
+              {t('compte.oubliTitre')}
+            </div>
+            {oubliEnvoye ? (
+              <div role="status" style={{ background: COLORS.greenSoft, color: COLORS.green, borderRadius: RADIUS.card, padding: '10px 12px', fontSize: TEXT.base, marginTop: SPACE.md }}>
+                {t('compte.oubliEnvoye')}
+              </div>
+            ) : (
+              <>
+                <div style={{ fontSize: TEXT.base, color: COLORS.inkSoft, marginBottom: SPACE.lg }}>{t('compte.oubliAide')}</div>
+                <form onSubmit={envoyerOubli} style={{ display: 'flex', flexDirection: 'column', gap: SPACE.md }}>
+                  <Field label={t('auth.email')} type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} required />
+                  {error && (
+                    <div style={{ background: COLORS.redSoft, color: COLORS.red, borderRadius: RADIUS.card, padding: '9px 12px', fontSize: TEXT.base, display: 'flex', alignItems: 'center', gap: SPACE.sm }}>
+                      <AlertTriangle size={14} /> {error}
+                    </div>
+                  )}
+                  <Button type="submit" variant="green" style={{ justifyContent: 'center', marginTop: SPACE.sm }} disabled={busy}>
+                    {busy ? <Loader2 size={15} className="spin" /> : <Mail size={14} />} {t('compte.oubliEnvoyer')}
+                  </Button>
+                </form>
+              </>
+            )}
+            <div style={{ fontSize: TEXT.base, color: COLORS.inkSoft, marginTop: SPACE.lg, textAlign: 'center' }}>
+              <button type="button" onClick={() => { setOubli(false); setOubliEnvoye(false); setError(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.green, fontWeight: 600, fontSize: TEXT.base }}>
+                {t('compte.retourConnexion')}
               </button>
             </div>
           </Card>
@@ -5816,15 +5875,19 @@ function LoginScreen({ onAuth, onConfirmerInscription, onRenvoyerCodeInscription
               {busy ? <Loader2 size={15} className="spin" /> : <Lock size={14} />} {mode === 'login' ? t('auth.submitLogin') : t('auth.submitRegister')}
             </Button>
           </form>
+          {mode === 'login' && (
+            <div style={{ textAlign: 'center', marginTop: SPACE.md }}>
+              <button type="button" onClick={() => { setOubli(true); setError(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.green, fontWeight: 600, fontSize: TEXT.sm }}>
+                {t('compte.oubliLien')}
+              </button>
+            </div>
+          )}
           <div style={{ fontSize: TEXT.base, color: COLORS.inkSoft, marginTop: SPACE.lg, textAlign: 'center' }}>
             {mode === 'login' ? (
               <>{t('auth.noAccount')} <button type="button" onClick={() => { setMode('register'); setError(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.green, fontWeight: 600, fontSize: TEXT.base }}>{t('auth.submitRegister')}</button></>
             ) : (
               <>{t('auth.hasAccount')} <button type="button" onClick={() => { setMode('login'); setError(''); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.green, fontWeight: 600, fontSize: TEXT.base }}>{t('auth.submitLogin')}</button></>
             )}
-          </div>
-          <div style={{ fontSize: TEXT.xs, color: COLORS.inkSoft, marginTop: SPACE.sm, textAlign: 'center' }}>
-            {t('auth.footer')}
           </div>
         </Card>
       </div>
@@ -7191,7 +7254,7 @@ function EmployeesModule({ farmId }) {
     dateEmbauche: '', salaire: '', email: '', telephone: '', adresse: '',
     photo: '', dateNaissance: '', contactUrgenceNom: '', contactUrgenceTel: '', numPieceIdentite: '',
     coutHoraire: '', heuresHebdo: '', joursTravailles: '',
-    createAccount: false, compteEmail: '', roleId: '', password: '',
+    createAccount: false, compteEmail: '', roleId: '',
   };
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
@@ -7203,7 +7266,7 @@ function EmployeesModule({ farmId }) {
     photo: '', dateNaissance: '', contactUrgenceNom: '', contactUrgenceTel: '', numPieceIdentite: '',
     coutHoraire: '', heuresHebdo: '', joursTravailles: '',
     dateDepart: '', motifDepart: '', statut: 'Actif',
-    linkAccount: false, compteEmail: '', password: '',
+    linkAccount: false, compteEmail: '',
   };
   const [editingEmp, setEditingEmp] = useState(null);
   const [editForm, setEditForm] = useState(emptyEditForm);
@@ -7257,22 +7320,24 @@ function EmployeesModule({ farmId }) {
   const addEmployee = async (e) => {
     e.preventDefault();
     if (!form.nom || !form.prenom) return;
-    if (form.createAccount && (!form.compteEmail || !form.password)) {
+    if (form.createAccount && !form.compteEmail) {
       setFormError(t('rh.errAccountFields'));
       return;
     }
     setSubmitting(true);
     setFormError('');
     try {
-      await createSalarie({
+      // Plus de mot de passe temporaire (lot 2a) : le serveur crée un lien d'activation que
+      // l'on affiche une fois, et qu'il tente aussi d'envoyer par email.
+      const res = await createSalarie({
         ...commonPayload(form),
         createAccount: form.createAccount,
         compteEmail: form.createAccount ? form.compteEmail : undefined,
-        password: form.createAccount ? form.password : undefined,
         // Plus de « niveau d'accès » imposé : seul compte le rôle défini par l'entreprise,
         // et son absence signifie « aucune restriction ».
         roleId: form.createAccount && form.roleId ? Number(form.roleId) : undefined,
       });
+      if (res?.acces) setLienAcces({ acces: res.acces, salarie: res.salarie });
       setForm(emptyForm);
       setShowMoreAdd(false);
       await loadEmployees();
@@ -7280,6 +7345,18 @@ function EmployeesModule({ farmId }) {
       setFormError(err.message);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // Lien d'accès affiché après création/rattachement ou sur demande (lot 2a).
+  const [lienAcces, setLienAcces] = useState(null);
+  const renvoyerLien = async (emp) => {
+    setError('');
+    try {
+      const { acces } = await creerLienAcces(emp.id);
+      setLienAcces({ acces, salarie: emp });
+    } catch (err) {
+      setError(err.message);
     }
   };
 
@@ -7309,7 +7386,7 @@ function EmployeesModule({ farmId }) {
       joursTravailles: emp.joursTravailles || '',
       dateDepart: emp.dateDepart ? String(emp.dateDepart).slice(0, 10) : '',
       motifDepart: emp.motifDepart || '', statut: emp.statut || 'Actif',
-      linkAccount: false, compteEmail: '', password: '',
+      linkAccount: false, compteEmail: '',
     });
   };
 
@@ -7322,23 +7399,23 @@ function EmployeesModule({ farmId }) {
   const saveEditEmployee = async (e) => {
     e.preventDefault();
     if (!editForm.nom || !editForm.prenom) return;
-    if (editForm.linkAccount && (!editForm.compteEmail || !editForm.password)) {
+    if (editForm.linkAccount && !editForm.compteEmail) {
       setEditError(t('rh.errLinkAccountFields'));
       return;
     }
     setEditSubmitting(true);
     setEditError('');
     try {
-      await updateSalarie(editingId, {
+      const res = await updateSalarie(editingId, {
         ...commonPayload(editForm),
         dateDepart: editForm.dateDepart || null,
         motifDepart: editForm.motifDepart || null,
         statut: editForm.statut || null,
         linkAccount: editForm.linkAccount || undefined,
         compteEmail: editForm.linkAccount ? editForm.compteEmail : undefined,
-        password: editForm.linkAccount ? editForm.password : undefined,
         // Plus de niveau d'accès imposé : voir le commentaire du formulaire de création.
       });
+      if (res?.acces) setLienAcces({ acces: res.acces, salarie: res.salarie });
       cancelEditEmployee();
       await loadEmployees();
     } catch (err) {
@@ -7449,7 +7526,7 @@ function EmployeesModule({ farmId }) {
                   </option>
                 ))}
               </Select>
-              <Field label={t('rh.tempPassword')} type="text" placeholder={t('rh.tempPassword')} value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} required={form.createAccount} />
+              <div style={{ gridColumn: '1 / -1', fontSize: TEXT.sm, color: COLORS.inkSoft }}>{t('compte.lienAideCreation')}</div>
             </div>
           )}
 
@@ -7528,6 +7605,11 @@ function EmployeesModule({ farmId }) {
                   <button onClick={() => setRhEmployee(emp)} title={t('rh.ficheRh')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.inkSoft, display: 'flex' }}>
                     <ClipboardList size={15} />
                   </button>
+                  {canManageRh && emp.compteEmail && (
+                    <button onClick={() => renvoyerLien(emp)} title={t('compte.lienRenvoyer')} aria-label={t('compte.lienRenvoyer')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.green, display: 'flex' }}>
+                      <KeyRound size={15} />
+                    </button>
+                  )}
                   {canManageRh && (
                     <button onClick={() => startEditEmployee(emp)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: COLORS.blue, display: 'flex' }}>
                       <Settings2 size={15} />
@@ -7587,7 +7669,7 @@ function EmployeesModule({ farmId }) {
                   {editForm.linkAccount && (
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: SPACE.sm, alignItems: 'end', padding: SPACE.md, borderRadius: RADIUS.card, background: COLORS.surfaceSoft || COLORS.surfaceAlt }}>
                       <Field label={t('rh.loginEmail')} type="email" value={editForm.compteEmail} onChange={e => setEditForm({ ...editForm, compteEmail: e.target.value })} required />
-                      <Field label={t('rh.tempPassword')} type="text" value={editForm.password} onChange={e => setEditForm({ ...editForm, password: e.target.value })} required />
+                      <div style={{ gridColumn: '1 / -1', fontSize: TEXT.sm, color: COLORS.inkSoft }}>{t('compte.lienAideCreation')}</div>
                     </div>
                   )}
                 </>
@@ -7603,6 +7685,8 @@ function EmployeesModule({ farmId }) {
           </div>
         </div>
       )}
+
+      {lienAcces && <LienAccesModal acces={lienAcces.acces} salarie={lienAcces.salarie} onClose={() => setLienAcces(null)} />}
 
       {rhEmployee && (
         <EmployeeRhModal employee={rhEmployee} canManage={canManageRh} onClose={() => setRhEmployee(null)} />
@@ -10182,6 +10266,8 @@ function ProfilModule() {
           </div>
         )}
       </Card>
+
+      <SecuriteCompteCard />
     </div>
     </div>
   );

@@ -229,6 +229,7 @@ const EXCEPTIONS = {
   'DELETE /api/salaries/avances/:avanceId': ['avances', 'supprimer'],
   'GET /api/salaries/:id/bulletin': ['bulletins', 'lire'],
   'GET /api/salaries/:id/journal': ['salaries', 'lire'],
+  'POST /api/salaries/:id/lien-acces': ['salaries', 'modifier'],
 
   // ── Entreprise et configuration ──
   'GET /api/entreprise': ['entreprise', 'lire'],
@@ -280,6 +281,10 @@ const HORS_PERIMETRE = {
   'POST /api/auth/register': 'création de compte, antérieure à tout rôle',
   'POST /api/auth/confirmer-inscription': 'confirmation par code, antérieure à tout rôle',
   'POST /api/auth/renvoyer-code-inscription': 'confirmation par code, antérieure à tout rôle',
+  'POST /api/auth/mot-de-passe-oublie': 'réinitialisation demandée sans compte connecté',
+  'POST /api/auth/definir-mot-de-passe': 'lien à usage unique (activation ou réinitialisation), sans compte connecté',
+  'POST /api/auth/changer-mot-de-passe': 'sécurité de son propre compte',
+  'POST /api/auth/deconnecter-autres-appareils': 'sécurité de son propre compte',
   'GET /api/auth/me': 'lecture de son propre compte',
 
   'POST /api/mfa/setup': 'sécurité de son propre compte',
