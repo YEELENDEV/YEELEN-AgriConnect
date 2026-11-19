@@ -109,7 +109,7 @@ describe('prochainNumeroJournal — numérotation par journal', () => {
   });
 });
 
-// Renommage INV → FAC (2026-09-11). La migration elle-même (migrate.js:renommerJournalVenteVersFac)
+// Renommage INV → FAC (2026-09-11). La migration elle-même (socle.js:renommerJournalVenteVersFac)
 // n'est pas rejouable ici — le globalSetup crée déjà les journaux en FAC — mais son invariant
 // critique se teste : après un renommage de code, la numérotation doit CONTINUER et non repartir
 // à 0001, sinon deux pièces du même exercice porteraient le même numéro apparent.

@@ -1,11 +1,11 @@
 // Catégories de produits (Cultures/Poulailler) — vraie ressource CRUD par entreprise,
 // remplace le texte libre non validé qu'était cultures_stocks.categorie/poulailler_stocks.categorie
 // avant la fusion en produits (2026-08-18). Modèle inspiré d'une inspection réelle d'un compte ERP (Inventaire > Configuration > Catégories de produits) : chaque entreprise gère sa propre
-// liste, pas un catalogue figé partagé par tous — voir server/src/db/migrate.js pour les 7
+// liste, pas un catalogue figé partagé par tous — voir server/src/db/socle.js pour les 7
 // catégories créées par défaut lors de la fusion.
 //
 // Hiérarchie (parent_id) ajoutée 2026-09-03, étape 0 de l'alignement Odoo produit/stock —
-// voir server/src/db/migrate.js pour le choix ON DELETE CASCADE. Le cloisonnement par
+// voir server/src/db/socle.js pour le choix ON DELETE CASCADE. Le cloisonnement par
 // module (un parent doit être du même module que son enfant) est validé ici, pas en base.
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';

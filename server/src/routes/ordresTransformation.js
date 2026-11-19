@@ -180,7 +180,7 @@ router.post('/', authRequired, async (req, res) => {
 
 // Annule un ordre : restitue les ingrédients consommés, retire l'article produit, supprime le
 // lot de sortie (rien d'autre ne peut encore le référencer, la déplétion FIFO étant hors
-// périmètre de ce projet — voir la note sur stock_lots dans migrate.js).
+// périmètre de ce projet — voir la note sur stock_lots dans socle.js).
 router.delete('/:id', authRequired, async (req, res) => {
   try {
     const ordre = await pool.query(

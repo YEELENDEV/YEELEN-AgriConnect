@@ -1,7 +1,7 @@
 // Transformation agroalimentaire, étape 1 : recettes de transformation (mrp.bom-like côté ERP
 // de référence). Un produit de sortie catalogué (module Cultures/Poulailler/Pisciculture
 // existant, aucun 4e module) + ses lignes d'ingrédients (autres produits + quantité). Pas
-// d'impact stock à cette étape (voir migrate.js) — étape 2 (ordres de transformation, différée)
+// d'impact stock à cette étape (voir socle.js) — étape 2 (ordres de transformation, différée)
 // consommera/produira réellement le stock à partir de ces recettes.
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';

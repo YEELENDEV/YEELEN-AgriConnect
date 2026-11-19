@@ -1,6 +1,6 @@
 // Activités planifiées — équivalent simplifié d'un modèle d'activité standard (un rappel/tâche
 // avec échéance, attaché à n'importe quelle ressource via ressource_type/ressource_id).
-// Voir server/src/db/migrate.js pour le schéma et le contexte.
+// Voir server/src/db/socle.js pour le schéma et le contexte.
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';
 import { pool } from '../db.js';

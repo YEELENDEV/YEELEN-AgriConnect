@@ -1,4 +1,4 @@
-// Journal des modifications (chatter) — voir server/src/db/migrate.js pour le schéma et
+// Journal des modifications (chatter) — voir server/src/db/socle.js pour le schéma et
 // le contexte (inspiré d'un suivi de champ standard, en plus simple : une ligne par
 // mise à jour listant tous les champs changés, pas une ligne par champ).
 import { pool } from '../db.js';

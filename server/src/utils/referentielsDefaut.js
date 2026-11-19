@@ -1,5 +1,5 @@
 // Référentiels créés par défaut pour toute entreprise — source UNIQUE partagée entre
-// routes/auth.js (amorçage à l'inscription) et db/migrate.js (rattrapage des entreprises
+// routes/auth.js (amorçage à l'inscription) et db/socle.js (rattrapage des entreprises
 // existantes). Ces listes étaient auparavant recopiées à l'identique dans les deux fichiers,
 // avec le risque qu'une modification n'en touche qu'un seul. Même idiome que
 // comptaDefauts.js / unitesMesureDefaut.js / emplacementsStockDefaut.js.
