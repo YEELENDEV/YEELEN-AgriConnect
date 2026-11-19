@@ -6,6 +6,7 @@ import express from 'express';
 import { pool } from '../db.js';
 import { authRequired } from '../middleware/auth.js';
 import { requirePlatformAdmin } from '../middleware/requirePlatformAdmin.js';
+import { log } from '../utils/journal.js';
 
 const router = express.Router();
 
@@ -33,7 +34,7 @@ router.post('/', authRequired, async (req, res) => {
     );
     return res.status(201).json({ ok: true });
   } catch (err) {
-    console.error('[POST /feedback]', err);
+    log.error('[POST /feedback]', err);
     return res.status(500).json({ error: "Erreur lors de l'envoi du retour." });
   }
 });
@@ -51,7 +52,7 @@ router.get('/', authRequired, requirePlatformAdmin, async (req, res) => {
     );
     return res.json({ feedback: result.rows });
   } catch (err) {
-    console.error('[GET /feedback]', err);
+    log.error('[GET /feedback]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des retours.' });
   }
 });
@@ -73,7 +74,7 @@ router.patch('/:id', authRequired, requirePlatformAdmin, async (req, res) => {
     }
     return res.json({ feedback: result.rows[0] });
   } catch (err) {
-    console.error('[PATCH /feedback/:id]', err);
+    log.error('[PATCH /feedback/:id]', err);
     return res.status(500).json({ error: 'Erreur lors de la mise à jour du retour.' });
   }
 });

@@ -20,6 +20,7 @@ import { invaliderCacheUtilisateur } from '../utils/rolesService.js';
 import { COMPTES_DEFAUT, JOURNAUX_DEFAUT } from '../utils/comptaDefauts.js';
 import { UNITES_MESURE_DEFAUT } from '../utils/unitesMesureDefaut.js';
 import { EMPLACEMENTS_STOCK_DEFAUT } from '../utils/emplacementsStockDefaut.js';
+import { log } from '../utils/journal.js';
 
 const router = express.Router();
 
@@ -238,13 +239,13 @@ router.post('/register', async (req, res) => {
     try {
       await sendInscriptionCodeEmail(user.email, code, entreprise.nom);
     } catch (mailErr) {
-      console.error('[register] envoi code de confirmation', mailErr);
+      log.error('[register] envoi code de confirmation', mailErr);
     }
 
     return res.status(201).json({ confirmationRequired: true, email: user.email });
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error('[register]', err);
+    log.error('[register]', err);
     return res.status(500).json({ error: "Erreur serveur lors de l'inscription." });
   } finally {
     client.release();
@@ -301,7 +302,7 @@ router.post('/confirmer-inscription', async (req, res) => {
       entreprise: { id: row.entreprise_id, nom: row.entreprise_nom, typeCompte: row.type_compte, devise: row.devise, locale: row.locale, fuseau: row.fuseau },
     });
   } catch (err) {
-    console.error('[confirmer-inscription]', err);
+    log.error('[confirmer-inscription]', err);
     return res.status(500).json({ error: 'Erreur serveur lors de la confirmation.' });
   }
 });
@@ -334,13 +335,13 @@ router.post('/renvoyer-code-inscription', async (req, res) => {
         try {
           await sendInscriptionCodeEmail(row.email, code, row.entreprise_nom);
         } catch (mailErr) {
-          console.error('[renvoyer-code-inscription]', mailErr);
+          log.error('[renvoyer-code-inscription]', mailErr);
         }
       }
     }
     return res.json({ ok: true });
   } catch (err) {
-    console.error('[renvoyer-code-inscription]', err);
+    log.error('[renvoyer-code-inscription]', err);
     return res.status(500).json({ error: 'Erreur serveur.' });
   }
 });
@@ -416,7 +417,7 @@ router.post('/login', async (req, res) => {
           try {
             await sendInscriptionCodeEmail(user.email, code, rattachement.rows[0].entreprise_nom);
           } catch (mailErr) {
-            console.error('[login] envoi code de confirmation', mailErr);
+            log.error('[login] envoi code de confirmation', mailErr);
           }
         }
         return res.status(200).json({ confirmationRequired: true, email: user.email });
@@ -452,7 +453,7 @@ router.post('/login', async (req, res) => {
           try {
             await sendMfaCodeEmail(user.email, code, requestContext(req));
           } catch (mailErr) {
-            console.error('[login] envoi code MFA email', mailErr);
+            log.error('[login] envoi code MFA email', mailErr);
           }
         }
         await logAuditEvent({ entrepriseId, userId: user.id, email: user.email, action: 'login_mfa_required', req });
@@ -502,7 +503,7 @@ router.post('/login', async (req, res) => {
       entreprise: { id: entrepriseId, nom: entrepriseNom, devise: entrepriseDevise, locale: entrepriseLocale, fuseau: entrepriseFuseau },
     });
   } catch (err) {
-    console.error('[login]', err);
+    log.error('[login]', err);
     return res.status(500).json({ error: 'Erreur serveur lors de la connexion.' });
   }
 });
@@ -533,7 +534,7 @@ router.post('/mot-de-passe-oublie', async (req, res) => {
     await logAuditEvent({ entrepriseId: u.entreprise_id, userId: u.id, email: u.email, action: 'reinitialisation_demandee', req });
     await sendReinitialisationEmail(u.email, lienCompte('reinitialisation', jeton));
   } catch (err) {
-    console.error('[mot-de-passe-oublie]', err.message);
+    log.error('[mot-de-passe-oublie]', err.message);
   }
 });
 
@@ -567,7 +568,7 @@ router.post('/definir-mot-de-passe', async (req, res) => {
     return res.json({ ok: true, email: rows[0].email });
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
-    console.error('[definir-mot-de-passe]', err);
+    log.error('[definir-mot-de-passe]', err);
     return res.status(500).json({ error: 'Erreur lors de la définition du mot de passe.' });
   } finally {
     client.release();
@@ -615,7 +616,7 @@ router.post('/changer-mot-de-passe', authRequired, async (req, res) => {
     await logAuditEvent({ entrepriseId: req.user.entrepriseId, userId: req.user.sub, email, action: 'mot_de_passe_change', req });
     return repondreAvecSession(req, res, token, { ok: true });
   } catch (err) {
-    console.error('[changer-mot-de-passe]', err);
+    log.error('[changer-mot-de-passe]', err);
     return res.status(500).json({ error: 'Erreur lors du changement de mot de passe.' });
   }
 });
@@ -628,7 +629,7 @@ router.post('/deconnecter-autres-appareils', authRequired, async (req, res) => {
     await logAuditEvent({ entrepriseId: req.user.entrepriseId, userId: req.user.sub, email: req.user.email, action: 'sessions_revoquees', req });
     return repondreAvecSession(req, res, token, { ok: true });
   } catch (err) {
-    console.error('[deconnecter-autres-appareils]', err);
+    log.error('[deconnecter-autres-appareils]', err);
     return res.status(500).json({ error: 'Erreur lors de la déconnexion des autres appareils.' });
   }
 });
@@ -667,7 +668,7 @@ return res.json({
   entreprise: { id: row.entreprise_id, nom: row.entreprise_nom, devise: row.devise, locale: row.locale, fuseau: row.fuseau },
 });
   } catch (err) {
-    console.error('[me]', err);
+    log.error('[me]', err);
     return res.status(500).json({ error: 'Erreur serveur.' });
   }
 });
@@ -680,7 +681,7 @@ router.get('/audit-log', authRequired, async (req, res) => {
     const historique = await getAuditLog(req.user.entrepriseId);
     return res.json({ historique });
   } catch (err) {
-    console.error('[GET /audit-log]', err);
+    log.error('[GET /audit-log]', err);
     return res.status(500).json({ error: "Erreur lors de la récupération du journal d'audit." });
   }
 });

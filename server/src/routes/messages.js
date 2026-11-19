@@ -4,6 +4,7 @@
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';
 import { pool } from '../db.js';
+import { log } from '../utils/journal.js';
 
 const router = express.Router();
 
@@ -25,7 +26,7 @@ router.get('/', authRequired, async (req, res) => {
     );
     return res.json({ messages: result.rows });
   } catch (err) {
-    console.error('[GET /messages]', err);
+    log.error('[GET /messages]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des messages.' });
   }
 });
@@ -47,7 +48,7 @@ router.post('/', authRequired, async (req, res) => {
     );
     return res.status(201).json({ message: { ...result.rows[0], userEmail: req.user.email } });
   } catch (err) {
-    console.error('[POST /messages]', err);
+    log.error('[POST /messages]', err);
     return res.status(500).json({ error: "Erreur lors de l'envoi du message." });
   }
 });

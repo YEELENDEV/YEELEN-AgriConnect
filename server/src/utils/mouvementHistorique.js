@@ -8,6 +8,7 @@
 // modifications et suppressions" dans ComptabiliteTab lit toujours cette table mais elle
 // reste donc vide dans les faits pour tout achat/vente créé après l'ancien flux.
 import { pool } from '../db.js';
+import { log } from './journal.js';
 
 // Enregistre une action (modification ou suppression) sur un mouvement (vente/achat)
 // dans la table d'historique, avec la raison fournie par l'utilisateur et les valeurs
@@ -20,7 +21,7 @@ export async function logMouvementHistorique(entrepriseId, userId, { module, mou
       [entrepriseId, userId, module, mouvementId, action, raison, JSON.stringify(anciennesValeurs || null), JSON.stringify(nouvellesValeurs || null)]
     );
   } catch (err) {
-    console.error('[logMouvementHistorique]', err);
+    log.error('[logMouvementHistorique]', err);
   }
 }
 

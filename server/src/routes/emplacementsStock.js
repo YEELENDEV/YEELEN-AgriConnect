@@ -11,6 +11,7 @@
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';
 import { pool } from '../db.js';
+import { log } from '../utils/journal.js';
 
 const router = express.Router();
 
@@ -34,7 +35,7 @@ router.get('/', authRequired, async (req, res) => {
     );
     return res.json({ emplacements: rows });
   } catch (err) {
-    console.error('[GET /emplacements-stock]', err);
+    log.error('[GET /emplacements-stock]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des emplacements.' });
   }
 });
@@ -54,7 +55,7 @@ router.post('/', ...ecriture, async (req, res) => {
     // UNIQUE (entreprise_id, nom) : deux emplacements homonymes rendraient tout écran de stock
     // indéchiffrable, autant le refuser explicitement.
     if (err.code === '23505') return res.status(409).json({ error: 'Un emplacement porte déjà ce nom.' });
-    console.error('[POST /emplacements-stock]', err);
+    log.error('[POST /emplacements-stock]', err);
     return res.status(500).json({ error: "Erreur lors de la création de l'emplacement." });
   }
 });
@@ -90,7 +91,7 @@ router.put('/:id', ...ecriture, async (req, res) => {
     return res.json({ emplacement: complet.rows[0] });
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ error: 'Un emplacement porte déjà ce nom.' });
-    console.error('[PUT /emplacements-stock/:id]', err);
+    log.error('[PUT /emplacements-stock/:id]', err);
     return res.status(500).json({ error: "Erreur lors de la modification de l'emplacement." });
   }
 });
@@ -116,7 +117,7 @@ router.delete('/:id', ...ecriture, async (req, res) => {
     await pool.query('DELETE FROM emplacements_stock WHERE id = $1 AND entreprise_id = $2', [id, req.user.entrepriseId]);
     return res.json({ success: true });
   } catch (err) {
-    console.error('[DELETE /emplacements-stock/:id]', err);
+    log.error('[DELETE /emplacements-stock/:id]', err);
     return res.status(500).json({ error: "Erreur lors de la suppression de l'emplacement." });
   }
 });

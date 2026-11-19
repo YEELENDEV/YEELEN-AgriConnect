@@ -4,6 +4,7 @@
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';
 import { convertir, DeviseInconnueError } from '../utils/currencyRates.js';
+import { log } from '../utils/journal.js';
 
 const router = express.Router();
 
@@ -18,7 +19,7 @@ router.get('/taux', authRequired, async (req, res) => {
     if (err instanceof DeviseInconnueError) {
       return res.status(400).json({ error: err.message });
     }
-    console.error('[GET /devises/taux]', err);
+    log.error('[GET /devises/taux]', err);
     return res.status(502).json({ error: 'Taux de change indisponible pour le moment.' });
   }
 });

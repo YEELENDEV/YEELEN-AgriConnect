@@ -12,6 +12,7 @@ import { genererEcheancesDepuisTerme } from './paymentTerms.js';
 import { appliquerTaxesLigne } from '../utils/taxeCompute.js';
 import { posterMove, enregistrerPaiementMove, journalParType, round2 } from '../utils/accountMove.js';
 import { convertir } from '../utils/currencyRates.js';
+import { log } from '../utils/journal.js';
 
 // Date de validité par défaut d'un devis : aujourd'hui + 30 jours (comme default_validity_date
 // d'un ERP de référence). Format 'YYYY-MM-DD'.
@@ -322,7 +323,7 @@ router.get('/', authRequired, async (req, res) => {
         );
     return res.json({ devis: result.rows });
   } catch (err) {
-    console.error('[GET /devis]', err);
+    log.error('[GET /devis]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des devis.' });
   }
 });
@@ -360,7 +361,7 @@ router.get('/ledger', authRequired, async (req, res) => {
     );
     return res.json({ mouvements: result.rows });
   } catch (err) {
-    console.error('[GET /devis/ledger]', err);
+    log.error('[GET /devis/ledger]', err);
     return res.status(500).json({ error: "Erreur lors de la récupération de l'historique des ventes." });
   }
 });
@@ -371,7 +372,7 @@ router.get('/:id', authRequired, async (req, res) => {
     if (!devis) return res.status(404).json({ error: 'Devis introuvable.' });
     return res.json({ devis });
   } catch (err) {
-    console.error('[GET /devis/:id]', err);
+    log.error('[GET /devis/:id]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération du devis.' });
   }
 });
@@ -385,7 +386,7 @@ router.get('/:id/journal', authRequired, async (req, res) => {
     const changements = await getJournal('devis', Number(req.params.id), req.user.entrepriseId);
     return res.json({ changements });
   } catch (err) {
-    console.error('[GET /devis/:id/journal]', err);
+    log.error('[GET /devis/:id/journal]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération du journal.' });
   }
 });
@@ -426,7 +427,7 @@ router.post('/', authRequired, async (req, res) => {
     return res.status(201).json({ devis });
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error('[POST /devis]', err);
+    log.error('[POST /devis]', err);
     return res.status(500).json({ error: 'Erreur lors de la création du devis.' });
   } finally {
     client.release();
@@ -541,7 +542,7 @@ router.put('/:id', authRequired, async (req, res) => {
     return res.json({ devis });
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error('[PUT /devis/:id]', err);
+    log.error('[PUT /devis/:id]', err);
     return res.status(500).json({ error: 'Erreur lors de la mise à jour.' });
   } finally {
     client.release();
@@ -560,7 +561,7 @@ router.delete('/:id', authRequired, async (req, res) => {
     await pool.query('DELETE FROM devis WHERE id = $1 AND entreprise_id = $2', [req.params.id, req.user.entrepriseId]);
     return res.json({ success: true });
   } catch (err) {
-    console.error('[DELETE /devis/:id]', err);
+    log.error('[DELETE /devis/:id]', err);
     return res.status(500).json({ error: 'Erreur lors de la suppression.' });
   }
 });
@@ -638,7 +639,7 @@ router.post('/:id/lien-whatsapp', authRequired, async (req, res) => {
       message,
     });
   } catch (err) {
-    console.error('[POST /devis/:id/lien-whatsapp]', err);
+    log.error('[POST /devis/:id/lien-whatsapp]', err);
     return res.status(500).json({ error: "Erreur lors de la préparation du message WhatsApp." });
   }
 });
@@ -672,7 +673,7 @@ router.post('/:id/envoyer', authRequired, async (req, res) => {
     try {
       await sendDevisEmail(devis.clientEmail, `${devis.clientPrenom || ''} ${devis.clientNom}`.trim(), entrepriseNom, devis.numero, lienConsultation);
     } catch (mailErr) {
-      console.error('[POST /devis/:id/envoyer] envoi email', mailErr);
+      log.error('[POST /devis/:id/envoyer] envoi email', mailErr);
       return res.status(502).json({ error: "L'email n'a pas pu être envoyé. Le devis reste en brouillon, réessayez." });
     }
 
@@ -685,7 +686,7 @@ router.post('/:id/envoyer', authRequired, async (req, res) => {
 
     return res.json({ success: true, lienConsultation });
   } catch (err) {
-    console.error('[POST /devis/:id/envoyer]', err);
+    log.error('[POST /devis/:id/envoyer]', err);
     return res.status(500).json({ error: "Erreur lors de l'envoi du devis." });
   }
 });
@@ -721,7 +722,7 @@ router.post('/:id/valider-manuel', authRequired, async (req, res) => {
     });
     return res.json({ devis });
   } catch (err) {
-    console.error('[POST /devis/:id/valider-manuel]', err);
+    log.error('[POST /devis/:id/valider-manuel]', err);
     return res.status(500).json({ error: 'Erreur lors de la validation.' });
   }
 });
@@ -748,7 +749,7 @@ router.post('/:id/annuler', authRequired, async (req, res) => {
     const devis = await getDevisComplet(req.params.id, req.user.entrepriseId);
     return res.json({ devis });
   } catch (err) {
-    console.error('[POST /devis/:id/annuler]', err);
+    log.error('[POST /devis/:id/annuler]', err);
     return res.status(500).json({ error: "Erreur lors de l'annulation." });
   }
 });
@@ -786,7 +787,7 @@ router.get('/public/:token', async (req, res) => {
     );
     return res.json({ devis: { ...devis, lignes: lignesResult.rows } });
   } catch (err) {
-    console.error('[GET /devis/public]', err);
+    log.error('[GET /devis/public]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération du devis.' });
   }
 });
@@ -845,7 +846,7 @@ router.post('/public/:token/signer', async (req, res) => {
     });
     return res.json({ success: true });
   } catch (err) {
-    console.error('[POST /devis/public/signer]', err);
+    log.error('[POST /devis/public/signer]', err);
     return res.status(500).json({ error: 'Erreur lors de la signature.' });
   }
 });
@@ -1063,7 +1064,7 @@ router.post('/:id/facturer', authRequired, async (req, res) => {
     return res.json({ devis });
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error('[POST /devis/:id/facturer]', err);
+    log.error('[POST /devis/:id/facturer]', err);
     return res.status(500).json({ error: 'Erreur lors de la conversion en facture.' });
   } finally {
     client.release();
@@ -1163,7 +1164,7 @@ router.post('/:id/remettre-brouillon', authRequired, async (req, res) => {
     return res.json({ devis });
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error('[POST /devis/:id/remettre-brouillon]', err);
+    log.error('[POST /devis/:id/remettre-brouillon]', err);
     return res.status(500).json({ error: 'Erreur lors de la remise en brouillon.' });
   } finally {
     client.release();
@@ -1243,7 +1244,7 @@ router.post('/:id/echeances/:echeanceId/payer', authRequired, async (req, res) =
     return res.json({ devis });
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
-    console.error('[POST /devis/:id/echeances/:echeanceId/payer]', err);
+    log.error('[POST /devis/:id/echeances/:echeanceId/payer]', err);
     return res.status(500).json({ error: 'Erreur lors du paiement.' });
   } finally {
     client.release();
@@ -1302,7 +1303,7 @@ router.get('/public/:token/pdf', async (req, res) => {
 
     streamDevisPdf(res, devis);
   } catch (err) {
-    console.error('[GET /devis/public/:token/pdf]', err);
+    log.error('[GET /devis/public/:token/pdf]', err);
     return res.status(500).json({ error: 'Erreur lors de la génération du PDF.' });
   }
 });
@@ -1340,7 +1341,7 @@ router.patch('/:id/lignes-quantites', authRequired, async (req, res) => {
     return res.json({ devis });
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error('[PATCH /devis/:id/lignes-quantites]', err);
+    log.error('[PATCH /devis/:id/lignes-quantites]', err);
     return res.status(500).json({ error: 'Erreur lors de la mise à jour des quantités.' });
   } finally {
     client.release();
@@ -1358,7 +1359,7 @@ router.get('/:id/pdf', authRequired, async (req, res) => {
 
     streamDevisPdf(res, devis);
   } catch (err) {
-    console.error('[GET /devis/:id/pdf]', err);
+    log.error('[GET /devis/:id/pdf]', err);
     return res.status(500).json({ error: 'Erreur lors de la génération du PDF.' });
   }
 });

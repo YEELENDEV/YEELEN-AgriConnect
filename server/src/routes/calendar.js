@@ -6,6 +6,7 @@
 import express from "express";
 import { pool } from "../db.js";
 import { authRequired } from "../middleware/auth.js";
+import { log } from "../utils/journal.js";
 
 const router = express.Router();
 
@@ -26,7 +27,7 @@ router.get("/", authRequired, async (req, res) => {
         );
         res.status(200).json({ events: result.rows });
     } catch (err) {
-        console.error("[GET /calendar]", err);
+        log.error("[GET /calendar]", err);
         res.status(500).json({ error: "Erreur lors de la récupération du calendrier." });
     }
 });
@@ -51,7 +52,7 @@ router.post("/", authRequired, async (req, res) => {
         );
         res.status(201).json({ event: result.rows[0] });
     } catch (err) {
-        console.error("[POST /calendar]", err);
+        log.error("[POST /calendar]", err);
         res.status(500).json({ error: "Erreur lors de la création de l'activité." });
     }
 });
@@ -79,7 +80,7 @@ router.put("/:id", authRequired, async (req, res) => {
         }
         res.status(200).json({ event: result.rows[0] });
     } catch (err) {
-        console.error("[PUT /calendar]", err);
+        log.error("[PUT /calendar]", err);
         res.status(500).json({ error: "Erreur lors de la mise à jour de l'activité." });
     }
 });

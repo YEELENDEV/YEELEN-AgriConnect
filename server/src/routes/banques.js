@@ -6,6 +6,7 @@ import express from 'express';
 import { authRequired } from '../middleware/auth.js';
 import { pool } from '../db.js';
 import banquesService from '../services/banquesService.js';
+import { log } from '../utils/journal.js';
 
 // Les écritures (création/édition/suppression d'un compte bancaire) sont réservées à
 // admin/directeur — même posture que les écritures financières de business.js. La
@@ -31,7 +32,7 @@ router.get('/', authRequired, async (req, res) => {
     );
     return res.json({ banques: result.rows });
   } catch (err) {
-    console.error('[GET /banques]', err);
+    log.error('[GET /banques]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des banques.' });
   }
 });
@@ -45,7 +46,7 @@ router.post('/', ...ecriture, async (req, res) => {
     const newBanque = await banquesService.createBanque(nomBanque, iban, typeCompte, solde, req.user.entrepriseId);
     return res.status(201).json({ banque_id: newBanque.id });
   } catch (err) {
-    console.error('[POST /banques]', err);
+    log.error('[POST /banques]', err);
     return res.status(500).json({ error: 'Erreur lors de la création.' });
   }
 });
@@ -62,7 +63,7 @@ router.put('/:id', ...ecriture, async (req, res) => {
     if (!updatedBanque) return res.status(404).json({ error: 'Compte bancaire introuvable.' });
     return res.json({ banque: updatedBanque });
   } catch (err) {
-    console.error('[PUT /banques]', err);
+    log.error('[PUT /banques]', err);
     return res.status(500).json({ error: 'Erreur lors de la mise à jour.' });
   }
 });
@@ -73,7 +74,7 @@ router.delete('/:id', ...ecriture, async (req, res) => {
     if (!deleted) return res.status(404).json({ error: 'Compte bancaire introuvable.' });
     return res.json({ success: true });
   } catch (err) {
-    console.error('[DELETE /banques]', err);
+    log.error('[DELETE /banques]', err);
     return res.status(500).json({ error: 'Erreur lors de la suppression.' });
   }
 });

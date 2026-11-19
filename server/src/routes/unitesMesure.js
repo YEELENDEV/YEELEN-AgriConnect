@@ -5,6 +5,7 @@
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';
 import { pool } from '../db.js';
+import { log } from '../utils/journal.js';
 
 const router = express.Router();
 const ecriture = [authRequired];
@@ -54,7 +55,7 @@ router.get('/', authRequired, async (req, res) => {
         );
     return res.json({ unites: rows });
   } catch (err) {
-    console.error('[GET /unites-mesure]', err);
+    log.error('[GET /unites-mesure]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des unités de mesure.' });
   }
 });
@@ -83,7 +84,7 @@ router.post('/', ...ecriture, async (req, res) => {
     return res.status(201).json({ unite: created.rows[0] });
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ error: 'Cette unité existe déjà dans cette catégorie.' });
-    console.error('[POST /unites-mesure]', err);
+    log.error('[POST /unites-mesure]', err);
     return res.status(500).json({ error: 'Erreur lors de la création de l\'unité.' });
   }
 });
@@ -119,7 +120,7 @@ router.put('/:id', ...ecriture, async (req, res) => {
     return res.json({ unite: updated.rows[0] });
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ error: 'Cette unité existe déjà dans cette catégorie.' });
-    console.error('[PUT /unites-mesure/:id]', err);
+    log.error('[PUT /unites-mesure/:id]', err);
     return res.status(500).json({ error: 'Erreur lors de la mise à jour de l\'unité.' });
   }
 });
@@ -136,7 +137,7 @@ router.delete('/:id', ...ecriture, async (req, res) => {
     if (result.rowCount === 0) return res.status(404).json({ error: 'Unité introuvable.' });
     return res.json({ success: true });
   } catch (err) {
-    console.error('[DELETE /unites-mesure/:id]', err);
+    log.error('[DELETE /unites-mesure/:id]', err);
     return res.status(500).json({ error: 'Erreur lors de la suppression.' });
   }
 });

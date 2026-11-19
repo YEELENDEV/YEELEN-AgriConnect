@@ -4,6 +4,7 @@ import pg from "pg";
 // Chargement des variables d'environnement centralisé dans config/env.js (server/.env puis
 // .env racine) — importé ici pour garantir que DB_* sont posées avant la création du pool.
 import "./config/env.js";
+import { log } from "./utils/journal.js";
 
 const { Pool } = pg;
 
@@ -23,14 +24,14 @@ export const pool = new Pool({
 // Une connexion inactive du pool peut être coupée côté serveur (redémarrage de Postgres) :
 // sans ce handler, l'événement 'error' non écouté ferait tomber tout le process Node.
 pool.on("error", (err) => {
-  console.error("[pg pool] connexion inactive en erreur", err.message);
+  log.error("[pg pool] connexion inactive en erreur", err.message);
 });
 
 // Vérifie au démarrage du serveur que la connexion PostgreSQL fonctionne réellement
 // (pas seulement que les variables d'environnement sont présentes). Lève une erreur en cas
 // d'échec : server.js s'arrête alors plutôt que de répondre 500 sur toutes les routes.
 export async function testDatabase() {
-  console.log(`Connexion PostgreSQL : ${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB_NAME}`);
+  log.info(`Connexion PostgreSQL : ${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB_NAME}`);
   await pool.query("SELECT 1");
-  console.log("✅ PostgreSQL connecté");
+  log.info("✅ PostgreSQL connecté");
 }

@@ -5,6 +5,7 @@
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';
 import { pool } from '../db.js';
+import { log } from '../utils/journal.js';
 
 const router = express.Router();
 
@@ -35,7 +36,7 @@ router.get('/', authRequired, async (req, res) => {
     const valeursParAttribut = await chargerValeurs(req.user.entrepriseId, attributs.map((a) => a.id));
     return res.json({ attributs: attributs.map((a) => ({ ...a, valeurs: valeursParAttribut.get(a.id) || [] })) });
   } catch (err) {
-    console.error('[GET /attributs-produit]', err);
+    log.error('[GET /attributs-produit]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des attributs.' });
   }
 });
@@ -64,7 +65,7 @@ router.post('/', authRequired, async (req, res) => {
     return res.status(201).json({ attribut: { ...attribut, valeurs: valeursCreees.get(attribut.id) || [] } });
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ error: 'Cet attribut existe déjà.' });
-    console.error('[POST /attributs-produit]', err);
+    log.error('[POST /attributs-produit]', err);
     return res.status(500).json({ error: "Erreur lors de la création de l'attribut." });
   }
 });
@@ -90,7 +91,7 @@ router.post('/:id/valeurs', authRequired, async (req, res) => {
     return res.status(201).json({ valeur: rows[0] });
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ error: 'Cette valeur existe déjà pour cet attribut.' });
-    console.error('[POST /attributs-produit/:id/valeurs]', err);
+    log.error('[POST /attributs-produit/:id/valeurs]', err);
     return res.status(500).json({ error: "Erreur lors de l'ajout de la valeur." });
   }
 });
@@ -108,7 +109,7 @@ router.delete('/valeurs/:valeurId', authRequired, async (req, res) => {
     if (result.rowCount === 0) return res.status(404).json({ error: 'Valeur introuvable.' });
     return res.json({ success: true });
   } catch (err) {
-    console.error('[DELETE /attributs-produit/valeurs/:valeurId]', err);
+    log.error('[DELETE /attributs-produit/valeurs/:valeurId]', err);
     return res.status(500).json({ error: 'Erreur lors de la suppression.' });
   }
 });
@@ -122,7 +123,7 @@ router.delete('/:id', authRequired, async (req, res) => {
     if (result.rowCount === 0) return res.status(404).json({ error: 'Attribut introuvable.' });
     return res.json({ success: true });
   } catch (err) {
-    console.error('[DELETE /attributs-produit/:id]', err);
+    log.error('[DELETE /attributs-produit/:id]', err);
     return res.status(500).json({ error: 'Erreur lors de la suppression.' });
   }
 });

@@ -96,6 +96,18 @@ describe('request (via getMe)', () => {
     fetch.mockResolvedValue(okResponse({ reason: 'suspended', mode: 'locked' }, 402));
     await expect(getMe()).rejects.toThrow(/suspendu/i);
   });
+
+  test('erreur serveur (5xx) → le message porte la référence de la requête', async () => {
+    marquerSession();
+    fetch.mockResolvedValue(okResponse({ error: 'Erreur interne du serveur.', requestId: 'a1b2c3d4e5f6' }, 500));
+    await expect(getMe()).rejects.toThrow('Erreur interne du serveur. (réf. a1b2c3d4e5f6)');
+  });
+
+  test('erreur client (4xx) → message seul, sans référence', async () => {
+    marquerSession();
+    fetch.mockResolvedValue(okResponse({ error: 'Champ manquant.', requestId: 'a1b2c3d4e5f6' }, 400));
+    await expect(getMe()).rejects.toThrow(/^Champ manquant\.$/);
+  });
 });
 
 describe('safeRequest (via createContactTag)', () => {

@@ -5,6 +5,7 @@
 // fois par parcelle et mis en cache dans parcelles.agro_polygon_id — voir routes/cultures.js
 // (PUT /parcelles/:id) pour l'invalidation quand la localisation/superficie change.
 import { DELAI_API_EXTERNE_MS } from '../config/env.js';
+import { log } from './journal.js';
 
 // HTTPS obligatoire : la clé AGRO_API_KEY voyage dans l'URL (paramètre appid).
 const POLYGONS_URL = 'https://api.agromonitoring.com/agro/1.0/polygons';
@@ -68,6 +69,6 @@ export async function supprimerPolygone(polyid, appid) {
       method: 'DELETE', signal: AbortSignal.timeout(DELAI_API_EXTERNE_MS),
     });
   } catch (err) {
-    console.error('[agroPolygon] suppression best-effort échouée', err.message);
+    log.error('[agroPolygon] suppression best-effort échouée', err.message);
   }
 }

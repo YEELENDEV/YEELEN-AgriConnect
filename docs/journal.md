@@ -5,6 +5,30 @@ Extrait de `CLAUDE.md` le 2026-08-28 pour alléger le contexte chargé à chaque
 
 ---
 
+### Lot 3b de l'audit : erreurs et journaux centralisés — 2026-11-19
+
+Deuxième sous-lot du lot 3 (A3). Avant : 344 `console.error` recopiés dans les routes, sans
+niveau, sans lien avec la requête ni l'utilisateur, et des erreurs PostgreSQL journalisées avec
+leur `detail` (qui recopie les valeurs : emails, noms).
+
+- **`utils/journal.js`** (`log.debug/info/warn/error`), sans dépendance : JSON en production,
+  texte lisible en développement, silencieux sous Jest. Les 351 appels `console.*` du serveur
+  (hors scripts `db/`) sont basculés mécaniquement, même forme d'appel.
+- **`middleware/contexteRequete.js`** : identifiant de requête (en-tête `X-Request-Id`, repris de
+  l'amont s'il est sûr), contexte AsyncLocalStorage qui ajoute requête/utilisateur/entreprise à
+  chaque ligne (rétabli après `express.json()`, qui le perd), ligne d'accès par requête (chemin
+  sans query string, jetons de devis public et de caméra masqués), `requestId` ajouté aux réponses
+  5xx. Le frontend affiche « (réf. …) » derrière le message d'une erreur serveur.
+- Gestionnaire d'erreurs final : chemin masqué ; `server.js` journalise les promesses rejetées sans
+  gestionnaire et s'arrête sur une exception non rattrapée (Docker relance).
+- Hors périmètre, prévu ailleurs : les messages d'erreur génériques et non traduits (T1, lot 6),
+  la couche d'accès aux données par domaine (lot 4), le passage à Express 5 qui rattrape les
+  promesses rejetées des routes (lot 3c).
+- Tests : `journal.test.js` (11), `api.test.js` (+2). Vérifié dans Docker : en-tête, identifiant
+  entrant repris, jeton masqué, format JSON sans `detail`.
+
+---
+
 ### Lot 3a de l'audit : migrations versionnées — 2026-11-19
 
 Premier sous-lot du lot 3 (socle technique, A2). Avant : un script `migrate.js` de 3 563 lignes

@@ -12,6 +12,7 @@ import express from 'express';
 import { authRequired } from '../middleware/auth.js';
 import { pool } from '../db.js';
 import { restrictionsUtilisateur, autoriseUtilisateur } from '../utils/rolesService.js';
+import { log } from '../utils/journal.js';
 
 const router = express.Router();
 const AUCUN = { rows: [] };
@@ -50,7 +51,7 @@ router.get('/', authRequired, async (req, res) => {
     ]);
     return res.json({ contacts: contacts.rows, produits: produits.rows, devis: devis.rows });
   } catch (err) {
-    console.error('[GET /recherche]', err);
+    log.error('[GET /recherche]', err);
     return res.status(500).json({ error: 'Erreur lors de la recherche.' });
   }
 });

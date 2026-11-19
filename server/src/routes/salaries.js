@@ -10,6 +10,7 @@ import { invaliderCacheRoles } from '../utils/rolesService.js';
 import { logAuditEvent } from '../utils/auditLog.js';
 import { logFieldChanges, getJournal } from '../utils/journalModifications.js';
 import { calculerJoursOuvres, listerJoursOuvres } from '../utils/congesJours.js';
+import { log } from '../utils/journal.js';
 
 const router = express.Router();
 
@@ -101,7 +102,7 @@ async function ouvrirAcces(req, { userId, email, prenom }) {
     await sendActivationEmail(email, prenom, rows[0]?.nom, lien);
     emailEnvoye = true;
   } catch (err) {
-    console.error('[salaries] lien d’activation non envoyé par email', err.message);
+    log.error('[salaries] lien d’activation non envoyé par email', err.message);
   }
   await logAuditEvent({
     entrepriseId: req.user.entrepriseId, userId: req.user.sub, email: req.user.email,
@@ -133,7 +134,7 @@ router.get('/', authRequired, async (req, res) => {
     );
     return res.json({ salaries: result.rows });
   } catch (err) {
-    console.error('[GET /salaries]', err);
+    log.error('[GET /salaries]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des salariés.' });
   }
 });
@@ -149,7 +150,7 @@ router.get('/moi', authRequired, async (req, res) => {
     if (!r.rows[0]) return res.status(404).json({ error: "Aucune fiche salarié n'est liée à votre compte." });
     return res.json({ salarie: r.rows[0] });
   } catch (err) {
-    console.error('[GET /salaries/moi]', err);
+    log.error('[GET /salaries/moi]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération de votre fiche.' });
   }
 });
@@ -260,7 +261,7 @@ router.post('/', authRequired, async (req, res) => {
     return res.status(201).json({ salarie: await fetchSalarie(salarieId), acces });
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error('[POST /salaries]', err);
+    log.error('[POST /salaries]', err);
     return res.status(500).json({ error: "Erreur lors de la création du salarié." });
   } finally {
     client.release();
@@ -416,7 +417,7 @@ router.put('/:id', authRequired, async (req, res) => {
     return res.json({ salarie: await fetchSalarie(req.params.id), acces });
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error('[PUT /salaries]', err);
+    log.error('[PUT /salaries]', err);
     return res.status(500).json({ error: 'Erreur lors de la mise à jour.' });
   } finally {
     client.release();
@@ -451,7 +452,7 @@ router.post('/:id/lien-acces', authRequired, async (req, res) => {
     const acces = await ouvrirAcces(req, { userId: s.user_id, email: s.email, prenom: s.prenom });
     return res.status(201).json({ acces });
   } catch (err) {
-    console.error('[POST /salaries/:id/lien-acces]', err);
+    log.error('[POST /salaries/:id/lien-acces]', err);
     return res.status(500).json({ error: 'Erreur lors de la création du lien d’accès.' });
   }
 });
@@ -477,7 +478,7 @@ router.delete('/:id', authRequired, async (req, res) => {
     await pool.query(`UPDATE salaries SET statut = 'Inactif' WHERE id = $1`, [req.params.id]);
     return res.json({ success: true });
   } catch (err) {
-    console.error('[DELETE /salaries]', err);
+    log.error('[DELETE /salaries]', err);
     return res.status(500).json({ error: 'Erreur lors de la désactivation.' });
   }
 });
@@ -491,7 +492,7 @@ router.get('/:id/journal', authRequired, async (req, res) => {
     const journal = await getJournal('salarie', Number(req.params.id), req.user.entrepriseId);
     return res.json({ journal });
   } catch (err) {
-    console.error('[GET /salaries/:id/journal]', err);
+    log.error('[GET /salaries/:id/journal]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération du journal.' });
   }
 });
@@ -511,7 +512,7 @@ router.get('/:id/presences', authRequired, async (req, res) => {
     );
     return res.json({ presences: result.rows });
   } catch (err) {
-    console.error('[GET /salaries/:id/presences]', err);
+    log.error('[GET /salaries/:id/presences]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des présences.' });
   }
 });
@@ -530,7 +531,7 @@ router.post('/:id/presences', authRequired, async (req, res) => {
     );
     return res.status(201).json({ presence: result.rows[0] });
   } catch (err) {
-    console.error('[POST /salaries/:id/presences]', err);
+    log.error('[POST /salaries/:id/presences]', err);
     return res.status(500).json({ error: "Erreur lors de l'enregistrement de la présence." });
   }
 });
@@ -590,7 +591,7 @@ router.get('/:id/conges', authRequired, async (req, res) => {
     );
     return res.json({ conges: result.rows });
   } catch (err) {
-    console.error('[GET /salaries/:id/conges]', err);
+    log.error('[GET /salaries/:id/conges]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des congés.' });
   }
 });
@@ -620,7 +621,7 @@ router.post('/:id/conges', authRequired, async (req, res) => {
     const full = await pool.query(`SELECT ${CONGE_COLUMNS} ${CONGE_FROM} WHERE c.id = $1`, [ins.rows[0].id]);
     return res.status(201).json({ conge: full.rows[0] });
   } catch (err) {
-    console.error('[POST /salaries/:id/conges]', err);
+    log.error('[POST /salaries/:id/conges]', err);
     return res.status(500).json({ error: "Erreur lors de la création de la demande de congé." });
   }
 });
@@ -660,7 +661,7 @@ router.put('/conges/:congeId', authRequired, async (req, res) => {
     const full = await pool.query(`SELECT ${CONGE_COLUMNS} ${CONGE_FROM} WHERE c.id = $1`, [req.params.congeId]);
     return res.json({ conge: full.rows[0] });
   } catch (err) {
-    console.error('[PUT /salaries/conges/:id]', err);
+    log.error('[PUT /salaries/conges/:id]', err);
     return res.status(500).json({ error: 'Erreur lors de la mise à jour du congé.' });
   }
 });
@@ -687,7 +688,7 @@ router.delete('/conges/:congeId', authRequired, async (req, res) => {
     await pool.query('DELETE FROM salaries_conges WHERE id = $1', [req.params.congeId]);
     return res.json({ success: true });
   } catch (err) {
-    console.error('[DELETE /salaries/conges/:id]', err);
+    log.error('[DELETE /salaries/conges/:id]', err);
     return res.status(500).json({ error: 'Erreur lors de la suppression du congé.' });
   }
 });
@@ -714,7 +715,7 @@ router.get('/:id/conges-solde', authRequired, async (req, res) => {
     const solde = rows.map(r => ({ ...r, restant: Math.round((r.alloues - r.pris) * 100) / 100 }));
     return res.json({ annee, solde });
   } catch (err) {
-    console.error('[GET /salaries/:id/conges-solde]', err);
+    log.error('[GET /salaries/:id/conges-solde]', err);
     return res.status(500).json({ error: 'Erreur lors du calcul du solde.' });
   }
 });
@@ -731,7 +732,7 @@ router.get('/:id/conges-droits', authRequired, async (req, res) => {
     );
     return res.json({ droits: rows });
   } catch (err) {
-    console.error('[GET /salaries/:id/conges-droits]', err);
+    log.error('[GET /salaries/:id/conges-droits]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des droits.' });
   }
 });
@@ -752,7 +753,7 @@ router.post('/:id/conges-droits', authRequired, async (req, res) => {
     );
     return res.status(201).json({ droit: rows[0] });
   } catch (err) {
-    console.error('[POST /salaries/:id/conges-droits]', err);
+    log.error('[POST /salaries/:id/conges-droits]', err);
     return res.status(500).json({ error: 'Erreur lors de l\'enregistrement du droit.' });
   }
 });
@@ -767,7 +768,7 @@ router.delete('/conges-droits/:droitId', authRequired, async (req, res) => {
     if (rowCount === 0) return res.status(404).json({ error: 'Droit introuvable.' });
     return res.json({ success: true });
   } catch (err) {
-    console.error('[DELETE /salaries/conges-droits/:id]', err);
+    log.error('[DELETE /salaries/conges-droits/:id]', err);
     return res.status(500).json({ error: 'Erreur lors de la suppression.' });
   }
 });
@@ -786,7 +787,7 @@ router.get('/:id/avances', authRequired, async (req, res) => {
     );
     return res.json({ avances: result.rows });
   } catch (err) {
-    console.error('[GET /salaries/:id/avances]', err);
+    log.error('[GET /salaries/:id/avances]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des avances.' });
   }
 });
@@ -803,7 +804,7 @@ router.post('/:id/avances', authRequired, async (req, res) => {
     );
     return res.status(201).json({ avance: result.rows[0] });
   } catch (err) {
-    console.error('[POST /salaries/:id/avances]', err);
+    log.error('[POST /salaries/:id/avances]', err);
     return res.status(500).json({ error: "Erreur lors de l'enregistrement de l'avance." });
   }
 });
@@ -818,7 +819,7 @@ router.delete('/avances/:avanceId', authRequired, async (req, res) => {
     if (result.rowCount === 0) return res.status(404).json({ error: 'Avance introuvable.' });
     return res.json({ success: true });
   } catch (err) {
-    console.error('[DELETE /salaries/avances/:id]', err);
+    log.error('[DELETE /salaries/avances/:id]', err);
     return res.status(500).json({ error: "Erreur lors de la suppression de l'avance." });
   }
 });
@@ -840,7 +841,7 @@ router.get('/:id/contrats', authRequired, async (req, res) => {
     );
     return res.json({ contrats: rows });
   } catch (err) {
-    console.error('[GET /salaries/:id/contrats]', err);
+    log.error('[GET /salaries/:id/contrats]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des contrats.' });
   }
 });
@@ -869,7 +870,7 @@ router.post('/:id/contrats', authRequired, async (req, res) => {
     return res.status(201).json({ contrat: rows[0] });
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error('[POST /salaries/:id/contrats]', err);
+    log.error('[POST /salaries/:id/contrats]', err);
     return res.status(500).json({ error: 'Erreur lors de la création du contrat.' });
   } finally {
     client.release();
@@ -912,7 +913,7 @@ router.put('/contrats/:contratId', authRequired, async (req, res) => {
     return res.json({ contrat: rows[0] });
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error('[PUT /salaries/contrats/:id]', err);
+    log.error('[PUT /salaries/contrats/:id]', err);
     return res.status(500).json({ error: 'Erreur lors de la mise à jour du contrat.' });
   } finally {
     client.release();
@@ -929,7 +930,7 @@ router.delete('/contrats/:contratId', authRequired, async (req, res) => {
     if (rowCount === 0) return res.status(404).json({ error: 'Contrat introuvable.' });
     return res.json({ success: true });
   } catch (err) {
-    console.error('[DELETE /salaries/contrats/:id]', err);
+    log.error('[DELETE /salaries/contrats/:id]', err);
     return res.status(500).json({ error: 'Erreur lors de la suppression du contrat.' });
   }
 });
@@ -958,7 +959,7 @@ router.get('/:id/temps', authRequired, async (req, res) => {
     // Le coût main-d'œuvre (heures × coût horaire) est calculé côté client à partir de salaries.coutHoraire.
     return res.json({ temps: rows, totalHeures: Math.round(totalHeures * 100) / 100 });
   } catch (err) {
-    console.error('[GET /salaries/:id/temps]', err);
+    log.error('[GET /salaries/:id/temps]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des feuilles de temps.' });
   }
 });
@@ -986,7 +987,7 @@ router.post('/:id/temps', authRequired, async (req, res) => {
     const full = await pool.query(`SELECT ${TEMPS_COLUMNS} ${TEMPS_FROM} WHERE t.id = $1`, [rows[0].id]);
     return res.status(201).json({ temps: full.rows[0] });
   } catch (err) {
-    console.error('[POST /salaries/:id/temps]', err);
+    log.error('[POST /salaries/:id/temps]', err);
     return res.status(500).json({ error: "Erreur lors de l'enregistrement des heures." });
   }
 });
@@ -1001,7 +1002,7 @@ router.delete('/temps/:tempsId', authRequired, async (req, res) => {
     if (rowCount === 0) return res.status(404).json({ error: 'Ligne introuvable.' });
     return res.json({ success: true });
   } catch (err) {
-    console.error('[DELETE /salaries/temps/:id]', err);
+    log.error('[DELETE /salaries/temps/:id]', err);
     return res.status(500).json({ error: 'Erreur lors de la suppression.' });
   }
 });
@@ -1057,7 +1058,7 @@ router.get('/:id/bulletin', authRequired, async (req, res) => {
       contratType: contratR.rows[0]?.type || null,
     });
   } catch (err) {
-    console.error('[GET /salaries/:id/bulletin]', err);
+    log.error('[GET /salaries/:id/bulletin]', err);
     return res.status(500).json({ error: 'Erreur lors du calcul du bulletin.' });
   }
 });

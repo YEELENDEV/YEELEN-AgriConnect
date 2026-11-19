@@ -9,6 +9,7 @@ import { authRequired } from '../middleware/auth.js';
 import { RESSOURCES, ACTIONS, ACTIONS_SENSIBLES, TOUTES_ACTIONS } from '../permissions/catalogue.js';
 import { invaliderCacheRoles, restrictionsUtilisateur } from '../utils/rolesService.js';
 import { logAuditEvent } from '../utils/auditLog.js';
+import { log } from '../utils/journal.js';
 
 const router = express.Router();
 
@@ -82,7 +83,7 @@ router.get('/', authRequired, async (req, res) => {
       proprietaire: await estProprietaire(req.user.entrepriseId, req.user.sub),
     });
   } catch (err) {
-    console.error('[GET /roles]', err);
+    log.error('[GET /roles]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des rôles.' });
   }
 });
@@ -102,7 +103,7 @@ router.get('/utilisateurs', authRequired, proprietaireRequis, async (req, res) =
     );
     return res.json({ utilisateurs: rows });
   } catch (err) {
-    console.error('[GET /roles/utilisateurs]', err);
+    log.error('[GET /roles/utilisateurs]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des utilisateurs.' });
   }
 });
@@ -122,7 +123,7 @@ router.post('/', authRequired, proprietaireRequis, async (req, res) => {
     return res.status(201).json({ role: { ...rows[0], restrictions: [], nbUtilisateurs: 0 } });
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ error: 'Un rôle porte déjà ce nom.' });
-    console.error('[POST /roles]', err);
+    log.error('[POST /roles]', err);
     return res.status(500).json({ error: 'Erreur lors de la création du rôle.' });
   }
 });
@@ -140,7 +141,7 @@ router.put('/:id', authRequired, proprietaireRequis, async (req, res) => {
     return res.json({ role: rows[0] });
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ error: 'Un rôle porte déjà ce nom.' });
-    console.error('[PUT /roles/:id]', err);
+    log.error('[PUT /roles/:id]', err);
     return res.status(500).json({ error: 'Erreur lors de la mise à jour du rôle.' });
   }
 });
@@ -161,7 +162,7 @@ router.delete('/:id', authRequired, proprietaireRequis, async (req, res) => {
     });
     return res.json({ success: true });
   } catch (err) {
-    console.error('[DELETE /roles/:id]', err);
+    log.error('[DELETE /roles/:id]', err);
     return res.status(500).json({ error: 'Erreur lors de la suppression du rôle.' });
   }
 });
@@ -206,7 +207,7 @@ router.put('/:id/restrictions', authRequired, proprietaireRequis, async (req, re
     return res.json({ success: true, nombre: restrictions.length });
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error('[PUT /roles/:id/restrictions]', err);
+    log.error('[PUT /roles/:id/restrictions]', err);
     return res.status(500).json({ error: 'Erreur lors de l\'enregistrement des restrictions.' });
   } finally {
     client.release();
@@ -237,7 +238,7 @@ router.put('/utilisateurs/:userId', authRequired, proprietaireRequis, async (req
     invaliderCacheRoles(req.user.entrepriseId, Number(req.params.userId));
     return res.json({ success: true });
   } catch (err) {
-    console.error('[PUT /roles/utilisateurs/:userId]', err);
+    log.error('[PUT /roles/utilisateurs/:userId]', err);
     return res.status(500).json({ error: "Erreur lors de l'affectation du rôle." });
   }
 });

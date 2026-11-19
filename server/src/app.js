@@ -13,6 +13,7 @@ import { pool } from "./db.js";
 import {
   enTetesSecurite, creerLimiteur, asyncMiddleware, route404, gestionnaireErreurs,
 } from "./middleware/securite.js";
+import { contexteRequete, retablirContexte } from "./middleware/contexteRequete.js";
 
 import authRoutes from "./routes/auth.js";
 import businessRoutes from "./routes/business.js";
@@ -68,6 +69,10 @@ import rolesRoutes from "./routes/roles.js";
 
 const app = express();
 
+// Identifiant de requête + contexte du journal + journal d'accès (lot 3b) : en tout premier,
+// pour que même une requête refusée par CORS ou les en-têtes de sécurité soit tracée.
+app.use(contexteRequete);
+
 // Ne révèle pas la technologie serveur (en-tête X-Powered-By: Express).
 app.disable("x-powered-by");
 
@@ -109,6 +114,7 @@ app.use(cors((req, callback) => {
 }));
 // Limite relevée à 2mb : la photo de contact est envoyée en base64 dans le corps JSON.
 app.use(express.json({ limit: "2mb" }));
+app.use(retablirContexte);
 
 // Limitation de débit des routes publiques (sans authentification), par IP : anti force brute
 // sur la connexion / les codes, anti énumération des jetons de devis et de caméras. Les

@@ -5,6 +5,7 @@
 // Seul test unitaire du projet côté backend : server/src/test/devisPdf.test.js.
 import PDFDocument from 'pdfkit';
 import { appliquerTaxesLigne } from './taxeCompute.js';
+import { log } from './journal.js';
 
 // Devises sans sous-unité parmi celles proposées par l'app (DEVISES dans src/lib/locale.jsx) :
 // toutes les autres s'affichent avec 2 décimales. Arrondir un montant en euros à l'entier,
@@ -192,7 +193,7 @@ export function streamDevisPdf(res, devis) {
     } catch (err) {
       // Une image de signature corrompue/mal encodée ne doit pas faire échouer tout le
       // PDF — le reste du document (déjà streamé) reste valide, seule la signature manque.
-      console.error('[streamDevisPdf] signature image error', err);
+      log.error('[streamDevisPdf] signature image error', err);
     }
   }
 

@@ -3,6 +3,7 @@
 // voir ce fichier) — pas de logique de saisonnalité/disponibilité de ressources au-delà de
 // ça, volontairement hors périmètre pour l'instant.
 import { getCulturePlanDetails } from './cultureService.js';
+import { log } from '../utils/journal.js';
 /**
  * @typedef {Object} PlanIntervention
  * @property {string} dateString - La date de l'intervention (YYYY-MM-DD).
@@ -17,13 +18,13 @@ import { getCulturePlanDetails } from './cultureService.js';
  * @returns {Promise<Array<PlanIntervention>>} Un tableau représentant les interventions planifiées, ou un tableau vide en cas d'échec critique.
  */
 export async function generatePlan(entrepriseId, cultureId) {
-    console.log(`[PlanningService] Démarrage de la génération du plan pour l'entreprise ${entrepriseId} et culture ${cultureId}...`);
+    log.info(`[PlanningService] Démarrage de la génération du plan pour l'entreprise ${entrepriseId} et culture ${cultureId}...`);
 
     try {
         const requiredDetails = await getCulturePlanDetails(cultureId, entrepriseId);
 
         if (!requiredDetails || !requiredDetails.scheduleMilestones) {
-            console.error("[PlanningService] Échec critique : Impossible de récupérer les étapes agronomiques pour cette culture.");
+            log.error("[PlanningService] Échec critique : Impossible de récupérer les étapes agronomiques pour cette culture.");
             return [];
         }
 
@@ -38,7 +39,7 @@ export async function generatePlan(entrepriseId, cultureId) {
         return planInterventions;
 
     } catch (error) {
-        console.error(`[PlanningService] ERREUR lors de la génération du plan pour ${cultureId}:`, error);
+        log.error(`[PlanningService] ERREUR lors de la génération du plan pour ${cultureId}:`, error);
         return [];
     }
 }

@@ -7,6 +7,7 @@ import express from 'express';
 import { authRequired } from '../middleware/auth.js';
 import { pool } from '../db.js';
 import { DELAI_API_EXTERNE_MS } from '../config/env.js';
+import { log } from '../utils/journal.js';
 
 const router = express.Router();
 
@@ -45,7 +46,7 @@ router.get('/villes', authRequired, async (req, res) => {
     }));
     return res.json({ villes });
   } catch (err) {
-    console.error('[GET /meteo/villes]', err);
+    log.error('[GET /meteo/villes]', err);
     return res.status(502).json({ error: 'Recherche de ville indisponible pour le moment.' });
   }
 });
@@ -62,7 +63,7 @@ router.get('/parcelles-localisees', authRequired, async (req, res) => {
     );
     return res.json({ parcelles: result.rows });
   } catch (err) {
-    console.error('[GET /meteo/parcelles-localisees]', err);
+    log.error('[GET /meteo/parcelles-localisees]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération.' });
   }
 });
@@ -128,7 +129,7 @@ router.get('/', authRequired, async (req, res) => {
   try {
     localisation = await resoudreLocalisation(req.user.entrepriseId, parcelleId);
   } catch (err) {
-    console.error('[GET /meteo] résolution localisation', err);
+    log.error('[GET /meteo] résolution localisation', err);
     return res.status(500).json({ error: 'Erreur lors de la résolution de la localisation.' });
   }
   if (!localisation) {
@@ -181,7 +182,7 @@ router.get('/', authRequired, async (req, res) => {
       // (calculerAlertes garde son propre nom de clé, indépendant de la forme exposée dans `sol`)
     });
   } catch (err) {
-    console.error('[GET /meteo] appel Open-Meteo', err);
+    log.error('[GET /meteo] appel Open-Meteo', err);
     return res.status(502).json({ error: 'Météo indisponible pour le moment.' });
   }
 });

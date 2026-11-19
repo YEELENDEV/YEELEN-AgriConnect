@@ -55,7 +55,10 @@ async function request(path, options = {}) {
   }
 
   if (!response.ok) {
-    throw new Error(data.error || `Erreur ${response.status}`);
+    const message = data.error || `Erreur ${response.status}`;
+    // Erreur serveur (lot 3b) : la référence permet de retrouver l'erreur exacte dans les
+    // journaux du serveur quand l'utilisateur la signale.
+    throw new Error(response.status >= 500 && data.requestId ? `${message} (réf. ${data.requestId})` : message);
   }
 
   return data;

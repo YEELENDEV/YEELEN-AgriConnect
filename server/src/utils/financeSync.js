@@ -13,12 +13,13 @@
 // `isDepenseEntry` dans src/modules/finances.jsx, qui doit gérer les deux conventions à
 // la fois pour classer correctement l'affichage.
 //
-// Toutes les fonctions ci-dessous avalent leurs erreurs (try/catch + console.error sans
+// Toutes les fonctions ci-dessous avalent leurs erreurs (try/catch + log.error sans
 // relancer) : un échec de synchronisation financière ne doit jamais faire échouer
 // l'opération métier principale (créer l'achat/la vente reste prioritaire), mais cela
 // signifie aussi qu'un échec silencieux peut désynchroniser Finances sans que personne
 // ne le remarque — pas d'alerte automatique en place à ce jour.
 import { pool } from '../db.js';
+import { log } from './journal.js';
 
 // Crée automatiquement une entrée dans "finances" pour une vente ou un achat
 // enregistré depuis Poulailler ou Cultures (mécanisme ligne-par-ligne, via
@@ -50,7 +51,7 @@ export async function syncFinanceEntry(entrepriseId, userId, { type, module, pro
       [entrepriseId, userId, categorie, montant, description, module, mouvementId, banquePrincipaleId]
     );
   } catch (err) {
-    console.error('[syncFinanceEntry]', err);
+    log.error('[syncFinanceEntry]', err);
   }
 }
 
@@ -70,7 +71,7 @@ export async function updateFinanceEntry(entrepriseId, module, mouvementId, { ty
       [montant, description, entrepriseId, module, mouvementId]
     );
   } catch (err) {
-    console.error('[updateFinanceEntry]', err);
+    log.error('[updateFinanceEntry]', err);
   }
 }
 
@@ -97,7 +98,7 @@ export async function syncAchatDocumentFinance(entrepriseId, userId, { module, t
       [entrepriseId, userId, categorie, montant, description, module, documentId, banquePrincipaleId]
     );
   } catch (err) {
-    console.error('[syncAchatDocumentFinance]', err);
+    log.error('[syncAchatDocumentFinance]', err);
   }
 }
 
@@ -115,7 +116,7 @@ export async function updateAchatDocumentFinance(entrepriseId, module, documentI
       [montant, description, entrepriseId, module, documentId]
     );
   } catch (err) {
-    console.error('[updateAchatDocumentFinance]', err);
+    log.error('[updateAchatDocumentFinance]', err);
   }
 }
 
@@ -130,7 +131,7 @@ export async function removeFinanceEntry(entrepriseId, module, mouvementId) {
       [entrepriseId, module, mouvementId]
     );
   } catch (err) {
-    console.error('[removeFinanceEntry]', err);
+    log.error('[removeFinanceEntry]', err);
   }
 }
 
@@ -162,7 +163,7 @@ export async function syncDevisPaiement(entrepriseId, userId, { montant, modePai
       [entrepriseId, userId, categorie, montant, description, 'Devis', echeanceId, banqueId]
     );
   } catch (err) {
-    console.error('[syncDevisPaiement]', err);
+    log.error('[syncDevisPaiement]', err);
   }
 }
 
@@ -186,6 +187,6 @@ export async function syncFacturePaiement(entrepriseId, userId, { montant, journ
       [entrepriseId, userId, categorie, montant, description, 'Facture', paymentId, banqueId]
     );
   } catch (err) {
-    console.error('[syncFacturePaiement]', err);
+    log.error('[syncFacturePaiement]', err);
   }
 }

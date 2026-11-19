@@ -6,6 +6,7 @@
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';
 import { pool } from '../db.js';
+import { log } from '../utils/journal.js';
 
 const router = express.Router();
 
@@ -41,7 +42,7 @@ router.get('/', authRequired, async (req, res) => {
         );
     return res.json({ recettes: result.rows });
   } catch (err) {
-    console.error('[GET /produit-recettes]', err);
+    log.error('[GET /produit-recettes]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des recettes.' });
   }
 });
@@ -72,7 +73,7 @@ router.post('/', authRequired, async (req, res) => {
     );
     return res.status(201).json({ recette: created.rows[0] });
   } catch (err) {
-    console.error('[POST /produit-recettes]', err);
+    log.error('[POST /produit-recettes]', err);
     return res.status(500).json({ error: 'Erreur lors de la création de la recette.' });
   }
 });
@@ -113,7 +114,7 @@ router.put('/:id', authRequired, async (req, res) => {
     );
     return res.json({ recette: updated.rows[0] });
   } catch (err) {
-    console.error('[PUT /produit-recettes]', err);
+    log.error('[PUT /produit-recettes]', err);
     return res.status(500).json({ error: 'Erreur lors de la mise à jour.' });
   }
 });
@@ -129,7 +130,7 @@ router.delete('/:id', authRequired, async (req, res) => {
     }
     return res.json({ success: true });
   } catch (err) {
-    console.error('[DELETE /produit-recettes]', err);
+    log.error('[DELETE /produit-recettes]', err);
     return res.status(500).json({ error: 'Erreur lors de la suppression.' });
   }
 });
@@ -152,7 +153,7 @@ router.get('/:id/lignes', authRequired, async (req, res) => {
     );
     return res.json({ lignes: result.rows });
   } catch (err) {
-    console.error('[GET /produit-recettes/:id/lignes]', err);
+    log.error('[GET /produit-recettes/:id/lignes]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des lignes.' });
   }
 });
@@ -190,7 +191,7 @@ router.post('/:id/lignes', authRequired, async (req, res) => {
     );
     return res.status(201).json({ ligne: created.rows[0] });
   } catch (err) {
-    console.error('[POST /produit-recettes/:id/lignes]', err);
+    log.error('[POST /produit-recettes/:id/lignes]', err);
     return res.status(500).json({ error: "Erreur lors de l'enregistrement de la ligne." });
   }
 });
@@ -210,7 +211,7 @@ router.delete('/lignes/:ligneId', authRequired, async (req, res) => {
     }
     return res.json({ success: true });
   } catch (err) {
-    console.error('[DELETE /produit-recettes/lignes/:id]', err);
+    log.error('[DELETE /produit-recettes/lignes/:id]', err);
     return res.status(500).json({ error: 'Erreur lors de la suppression de la ligne.' });
   }
 });

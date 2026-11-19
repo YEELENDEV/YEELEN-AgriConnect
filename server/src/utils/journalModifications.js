@@ -2,6 +2,7 @@
 // le contexte (inspiré d'un suivi de champ standard, en plus simple : une ligne par
 // mise à jour listant tous les champs changés, pas une ligne par champ).
 import { pool } from '../db.js';
+import { log } from './journal.js';
 
 // Compare oldRow/newRow sur les seuls champs listés dans trackedFields, insère une ligne
 // dans journal_modifications uniquement si au moins un a réellement changé. Catch-and-log
@@ -25,7 +26,7 @@ export async function logFieldChanges(entrepriseId, ressourceType, ressourceId, 
       [entrepriseId, ressourceType, ressourceId, userId, JSON.stringify(changements)]
     );
   } catch (err) {
-    console.error('[logFieldChanges]', err);
+    log.error('[logFieldChanges]', err);
   }
 }
 

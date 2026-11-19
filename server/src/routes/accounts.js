@@ -4,6 +4,7 @@
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';
 import { pool } from '../db.js';
+import { log } from '../utils/journal.js';
 
 const router = express.Router();
 const ecriture = [authRequired];
@@ -50,7 +51,7 @@ router.get('/', authRequired, async (req, res) => {
     );
     return res.json({ accounts: rows });
   } catch (err) {
-    console.error('[GET /accounts]', err);
+    log.error('[GET /accounts]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération du plan de comptes.' });
   }
 });
@@ -68,7 +69,7 @@ router.post('/', ...ecriture, async (req, res) => {
     return res.status(201).json({ account: rows[0] });
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ error: 'Un compte porte déjà ce code.' });
-    console.error('[POST /accounts]', err);
+    log.error('[POST /accounts]', err);
     return res.status(500).json({ error: 'Erreur lors de la création du compte.' });
   }
 });
@@ -94,7 +95,7 @@ router.put('/:id', ...ecriture, async (req, res) => {
     return res.json({ account: rows[0] });
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ error: 'Un compte porte déjà ce code.' });
-    console.error('[PUT /accounts/:id]', err);
+    log.error('[PUT /accounts/:id]', err);
     return res.status(500).json({ error: 'Erreur lors de la mise à jour du compte.' });
   }
 });
@@ -111,7 +112,7 @@ router.delete('/:id', ...ecriture, async (req, res) => {
     // le journal qui le pointait voit juste son compte par défaut retomber à NULL.
     return res.json({ success: true });
   } catch (err) {
-    console.error('[DELETE /accounts/:id]', err);
+    log.error('[DELETE /accounts/:id]', err);
     return res.status(500).json({ error: 'Erreur lors de la suppression du compte.' });
   }
 });

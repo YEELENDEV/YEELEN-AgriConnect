@@ -14,6 +14,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
+import { log } from '../utils/journal.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
@@ -42,12 +43,12 @@ function resoudreJwtSecret() {
     );
   }
   if (secret) {
-    if (process.env.NODE_ENV !== 'test') console.warn(`[env] JWT_SECRET fait moins de ${LONGUEUR_MIN_SECRET} caractères : acceptable en développement uniquement.`);
+    if (process.env.NODE_ENV !== 'test') log.warn(`[env] JWT_SECRET fait moins de ${LONGUEUR_MIN_SECRET} caractères : acceptable en développement uniquement.`);
     return secret;
   }
   // Développement sans aucun secret configuré : secret aléatoire propre à ce process (les
   // tokens deviennent invalides au redémarrage) plutôt qu'une valeur par défaut publique.
-  console.warn('[env] JWT_SECRET absent : secret aléatoire temporaire généré (développement uniquement).');
+  log.warn('[env] JWT_SECRET absent : secret aléatoire temporaire généré (développement uniquement).');
   return crypto.randomBytes(48).toString('base64');
 }
 

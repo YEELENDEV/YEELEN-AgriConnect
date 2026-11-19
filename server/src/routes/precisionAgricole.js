@@ -7,6 +7,7 @@ import { pool } from '../db.js';
 import { DELAI_API_EXTERNE_MS } from '../config/env.js';
 import { classifierTexture, suggererCultures } from '../utils/solAgronomie.js';
 import { creerPolygone, SuperficieHorsBornesError } from '../utils/agroPolygon.js';
+import { log } from '../utils/journal.js';
 
 const router = express.Router();
 // HTTPS obligatoire : la clé AGRO_API_KEY voyage dans l'URL (paramètre appid).
@@ -79,7 +80,7 @@ router.get('/sol', authRequired, async (req, res) => {
       culturesSuggerees: classe ? suggererCultures(ph, classe) : [],
     });
   } catch (err) {
-    console.error('[GET /precision/sol]', err);
+    log.error('[GET /precision/sol]', err);
     return res.status(502).json({ error: 'Analyse de sol indisponible pour le moment.' });
   }
 });
@@ -149,7 +150,7 @@ router.get('/ndvi', authRequired, async (req, res) => {
     if (err instanceof SuperficieHorsBornesError) {
       return res.status(400).json({ error: err.message });
     }
-    console.error('[GET /precision/ndvi]', err);
+    log.error('[GET /precision/ndvi]', err);
     return res.status(502).json({ error: 'Imagerie satellite indisponible pour le moment.' });
   }
 });

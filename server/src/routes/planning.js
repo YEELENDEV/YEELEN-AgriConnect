@@ -2,6 +2,7 @@ import express from 'express';
 import { authRequired } from '../middleware/auth.js';
 import { generatePlan } from '../services/planningService.js';
 import { pool } from '../db.js';
+import { log } from '../utils/journal.js';
 
 const router = express.Router();
 
@@ -58,7 +59,7 @@ router.post('/', authRequired, async (req, res) => {
         });
 
     } catch (error) {
-        console.error("[PlanningRoute] Erreur lors de la création du plan:", error);
+        log.error("[PlanningRoute] Erreur lors de la création du plan:", error);
         res.status(500).json({ message: "Une erreur interne est survenue lors de la génération ou la sauvegarde du plan." });
     }
 });

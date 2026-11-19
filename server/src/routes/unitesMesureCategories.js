@@ -5,6 +5,7 @@
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';
 import { pool } from '../db.js';
+import { log } from '../utils/journal.js';
 
 const router = express.Router();
 const ecriture = [authRequired];
@@ -20,7 +21,7 @@ router.get('/', authRequired, async (req, res) => {
     );
     return res.json({ categories: rows });
   } catch (err) {
-    console.error('[GET /unites-mesure-categories]', err);
+    log.error('[GET /unites-mesure-categories]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des catégories d\'unités.' });
   }
 });
@@ -37,7 +38,7 @@ router.post('/', ...ecriture, async (req, res) => {
     return res.status(201).json({ categorie: rows[0] });
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ error: 'Cette catégorie d\'unités existe déjà.' });
-    console.error('[POST /unites-mesure-categories]', err);
+    log.error('[POST /unites-mesure-categories]', err);
     return res.status(500).json({ error: 'Erreur lors de la création de la catégorie.' });
   }
 });
@@ -55,7 +56,7 @@ router.delete('/:id', ...ecriture, async (req, res) => {
     if (result.rowCount === 0) return res.status(404).json({ error: 'Catégorie introuvable.' });
     return res.json({ success: true });
   } catch (err) {
-    console.error('[DELETE /unites-mesure-categories/:id]', err);
+    log.error('[DELETE /unites-mesure-categories/:id]', err);
     return res.status(500).json({ error: 'Erreur lors de la suppression.' });
   }
 });

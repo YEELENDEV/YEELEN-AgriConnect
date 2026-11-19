@@ -6,6 +6,7 @@
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';
 import { pool } from '../db.js';
+import { log } from '../utils/journal.js';
 
 const router = express.Router();
 
@@ -52,7 +53,7 @@ router.get('/', authRequired, async (req, res) => {
     );
     return res.json({ controles: result.rows });
   } catch (err) {
-    console.error('[GET /haccp]', err);
+    log.error('[GET /haccp]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération du registre HACCP.' });
   }
 });
@@ -94,7 +95,7 @@ router.post('/', authRequired, async (req, res) => {
     const created = await pool.query(`SELECT ${CONTROLE_COLUMNS} FROM haccp_controles h WHERE h.id = $1`, [insert.rows[0].id]);
     return res.status(201).json({ controle: created.rows[0] });
   } catch (err) {
-    console.error('[POST /haccp]', err);
+    log.error('[POST /haccp]', err);
     return res.status(500).json({ error: "Erreur lors de l'enregistrement du contrôle." });
   }
 });
@@ -129,7 +130,7 @@ router.put('/:id', authRequired, async (req, res) => {
     const updated = await pool.query(`SELECT ${CONTROLE_COLUMNS} FROM haccp_controles h WHERE h.id = $1`, [req.params.id]);
     return res.json({ controle: updated.rows[0] });
   } catch (err) {
-    console.error('[PUT /haccp/:id]', err);
+    log.error('[PUT /haccp/:id]', err);
     return res.status(500).json({ error: 'Erreur lors de la mise à jour.' });
   }
 });
@@ -145,7 +146,7 @@ router.delete('/:id', authRequired, async (req, res) => {
     }
     return res.json({ success: true });
   } catch (err) {
-    console.error('[DELETE /haccp/:id]', err);
+    log.error('[DELETE /haccp/:id]', err);
     return res.status(500).json({ error: 'Erreur lors de la suppression.' });
   }
 });

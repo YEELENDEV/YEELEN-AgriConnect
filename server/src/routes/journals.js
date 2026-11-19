@@ -5,6 +5,7 @@
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';
 import { pool } from '../db.js';
+import { log } from '../utils/journal.js';
 
 const router = express.Router();
 const ecriture = [authRequired];
@@ -69,7 +70,7 @@ router.get('/', authRequired, async (req, res) => {
     );
     return res.json({ journals: rows });
   } catch (err) {
-    console.error('[GET /journals]', err);
+    log.error('[GET /journals]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des journaux.' });
   }
 });
@@ -91,7 +92,7 @@ router.post('/', ...ecriture, async (req, res) => {
     return res.status(201).json({ journal: rows[0] });
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ error: 'Un journal porte déjà ce code.' });
-    console.error('[POST /journals]', err);
+    log.error('[POST /journals]', err);
     return res.status(500).json({ error: 'Erreur lors de la création du journal.' });
   }
 });
@@ -125,7 +126,7 @@ router.put('/:id', ...ecriture, async (req, res) => {
     return res.json({ journal: rows[0] });
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ error: 'Un journal porte déjà ce code.' });
-    console.error('[PUT /journals/:id]', err);
+    log.error('[PUT /journals/:id]', err);
     return res.status(500).json({ error: 'Erreur lors de la mise à jour du journal.' });
   }
 });
@@ -140,7 +141,7 @@ router.delete('/:id', ...ecriture, async (req, res) => {
     if (result.rowCount === 0) return res.status(404).json({ error: 'Journal introuvable.' });
     return res.json({ success: true });
   } catch (err) {
-    console.error('[DELETE /journals/:id]', err);
+    log.error('[DELETE /journals/:id]', err);
     return res.status(500).json({ error: 'Erreur lors de la suppression du journal.' });
   }
 });

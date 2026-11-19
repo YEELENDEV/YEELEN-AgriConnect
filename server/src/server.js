@@ -6,6 +6,19 @@ import app from "./app.js";
 import { env } from "./config/env.js";
 import { testDatabase, pool } from "./db.js";
 import { migrationsEnAttente } from "./db/migrations.js";
+import { log } from "./utils/journal.js";
+
+// Filets de dernier recours (lot 3b). Une promesse rejetée sans catch (une route async qui
+// oublie son try/catch — Express 4 ne les rattrape pas) est journalisée avec sa requête au lieu
+// de passer inaperçue. Une exception non rattrapée laisse le processus dans un état incertain :
+// on la journalise puis on s'arrête, Docker (`restart: unless-stopped`) relance proprement.
+process.on("unhandledRejection", (raison) => {
+  log.error("Promesse rejetée sans gestionnaire", raison instanceof Error ? raison : new Error(String(raison)));
+});
+process.on("uncaughtException", (err) => {
+  log.error("Exception non rattrapée — arrêt du serveur", err);
+  process.exit(1);
+});
 
 // Bloque le démarrage tant que la connexion PostgreSQL n'est pas confirmée — mieux
 // vaut un conteneur qui ne démarre pas du tout (et que `restart: unless-stopped` relance)
@@ -13,7 +26,7 @@ import { migrationsEnAttente } from "./db/migrations.js";
 try {
   await testDatabase();
 } catch (err) {
-  console.error("❌ PostgreSQL injoignable — arrêt du serveur.", err.message);
+  log.error("❌ PostgreSQL injoignable — arrêt du serveur.", err.message);
   process.exit(1);
 }
 
@@ -23,12 +36,12 @@ try {
 try {
   const attente = await migrationsEnAttente(pool);
   if (attente.length) {
-    console.warn(`⚠️  Migrations en attente sur cette base : ${attente.join(", ")} — lancer « node src/db/migrate.js ».`);
+    log.warn(`⚠️  Migrations en attente sur cette base : ${attente.join(", ")} — lancer « node src/db/migrate.js ».`);
   }
 } catch (err) {
-  console.warn("⚠️  Impossible de vérifier les migrations en attente :", err.message);
+  log.warn("⚠️  Impossible de vérifier les migrations en attente :", err.message);
 }
 
 app.listen(env.PORT, () => {
-  console.log(`✅ Serveur démarré sur le port ${env.PORT}`);
+  log.info(`✅ Serveur démarré sur le port ${env.PORT}`);
 });
