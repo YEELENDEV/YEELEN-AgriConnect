@@ -56,7 +56,7 @@ describe('MFA — TOTP', () => {
     const sansMdp = await request(app).post('/api/mfa/disable').set(bearer(user.token)).send({});
     expect(sansMdp.status).toBe(400);
     const mauvaisMdp = await request(app).post('/api/mfa/disable').set(bearer(user.token)).send({ password: 'Mauvais123' });
-    expect(mauvaisMdp.status).toBe(401);
+    expect(mauvaisMdp.status).toBe(400);
     let me = await request(app).get('/api/auth/me').set(bearer(user.token));
     expect(me.body.user.mfaEnabled).toBe(true);
 

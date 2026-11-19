@@ -2,7 +2,9 @@ import express from 'express';
 import bcrypt from 'bcryptjs';
 import { authRequired } from '../middleware/auth.js';
 import { pool } from '../db.js';
-import { sendWelcomeEmail } from '../services/mailer.js';
+import crypto from 'node:crypto';
+import { sendActivationEmail } from '../services/mailer.js';
+import { creerJetonCompte, lienCompte } from '../utils/jetonsCompte.js';
 import { validerMotDePasse, validerEmail, BCRYPT_COUT } from '../utils/motDePasse.js';
 import { invaliderCacheRoles } from '../utils/rolesService.js';
 import { logAuditEvent } from '../utils/auditLog.js';
@@ -80,6 +82,34 @@ async function estSaPropreDemande(req, access) {
   return !(await estProprietaire(req.user.entrepriseId, req.user.sub));
 }
 
+// Mot de passe initial d'un compte salarié. Fourni (clients d'API, tests) : appliqué tel quel,
+// jamais envoyé par email. Absent (cas de l'interface depuis le lot 2a) : 32 octets aléatoires
+// que personne ne connaît — le compte ne s'ouvre qu'avec le lien d'activation.
+async function hashMotDePasseInitial(password) {
+  return bcrypt.hash(password || crypto.randomBytes(32).toString('base64url'), BCRYPT_COUT);
+}
+
+// Crée un lien d'activation (72 h, usage unique) et tente de l'envoyer par email. Le lien est
+// AUSSI renvoyé à l'entreprise, une seule fois : sans configuration d'email (fréquent en
+// local ou au démarrage), c'est le seul moyen de le transmettre au salarié (WhatsApp, SMS…).
+async function ouvrirAcces(req, { userId, email, prenom }) {
+  const jeton = await creerJetonCompte(pool, { userId, objet: 'activation', creePar: req.user.sub });
+  const lien = lienCompte('activation', jeton);
+  const { rows } = await pool.query('SELECT nom FROM entreprises WHERE id = $1', [req.user.entrepriseId]);
+  let emailEnvoye = false;
+  try {
+    await sendActivationEmail(email, prenom, rows[0]?.nom, lien);
+    emailEnvoye = true;
+  } catch (err) {
+    console.error('[salaries] lien d’activation non envoyé par email', err.message);
+  }
+  await logAuditEvent({
+    entrepriseId: req.user.entrepriseId, userId: req.user.sub, email: req.user.email,
+    action: 'lien_acces_cree', req, details: { targetUserId: userId, emailEnvoye },
+  });
+  return { lien, emailEnvoye, email };
+}
+
 async function estProprietaire(entrepriseId, userId) {
   const { rows } = await pool.query('SELECT 1 FROM entreprises WHERE id = $1 AND proprietaire_user_id = $2', [entrepriseId, userId]);
   return rows.length > 0;
@@ -141,11 +171,12 @@ router.post('/', authRequired, async (req, res) => {
   if (!nom || !prenom) {
     return res.status(400).json({ error: 'Nom et prénom requis.' });
   }
-  if (createAccount && (!compteEmail || !password)) {
-    return res.status(400).json({ error: 'Email de connexion et mot de passe requis pour créer un compte.' });
+  if (createAccount && !compteEmail) {
+    return res.status(400).json({ error: 'Email de connexion requis pour créer un compte.' });
   }
   if (createAccount) {
-    const erreur = validerEmail(compteEmail) || validerMotDePasse(password);
+    // Mot de passe facultatif depuis le lot 2a : l'interface n'en envoie plus (lien d'activation).
+    const erreur = validerEmail(compteEmail) || (password !== undefined && password !== '' ? validerMotDePasse(password) : null);
     if (erreur) return res.status(400).json({ error: erreur });
   }
 
@@ -161,7 +192,7 @@ router.post('/', authRequired, async (req, res) => {
         await client.query('ROLLBACK');
         return res.status(409).json({ error: 'Un utilisateur avec cet email existe déjà.' });
       }
-      const passwordHash = await bcrypt.hash(password, BCRYPT_COUT);
+      const passwordHash = await hashMotDePasseInitial(password);
       const userResult = await client.query(
         `INSERT INTO users (email, role, password) VALUES ($1, $2, $3) RETURNING id`,
         [compteEmail.toLowerCase(), ROLE_TEXTE_NEUTRE, passwordHash]
@@ -222,11 +253,11 @@ router.post('/', authRequired, async (req, res) => {
         action: 'account_created', req,
         details: { targetUserId: userId, targetEmail: compteEmail, roleId: roleIdValide },
       });
-      try { await sendWelcomeEmail(compteEmail, password, prenom); }
-      catch (mailErr) { console.error('[POST /salaries] email non envoyé', mailErr); }
     }
+    // Sans mot de passe fourni : lien d'activation (email + affiché une fois à l'entreprise).
+    const acces = createAccount && !password ? await ouvrirAcces(req, { userId, email: compteEmail, prenom }) : null;
 
-    return res.status(201).json({ salarie: await fetchSalarie(salarieId) });
+    return res.status(201).json({ salarie: await fetchSalarie(salarieId), acces });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('[POST /salaries]', err);
@@ -269,12 +300,13 @@ router.put('/:id', authRequired, async (req, res) => {
 
     // Lier un compte de connexion à un salarié qui n'en a pas encore.
     let userId = before.user_id;
+    let compteAOuvrir = null; // lien d'activation à créer après le COMMIT
     if (linkAccount && !userId) {
-      if (!compteEmail || !password) {
+      if (!compteEmail) {
         await client.query('ROLLBACK');
-        return res.status(400).json({ error: 'Email, mot de passe et rôle requis pour créer le compte.' });
+        return res.status(400).json({ error: 'Email de connexion requis pour créer le compte.' });
       }
-      const erreurCompte = validerEmail(compteEmail) || validerMotDePasse(password);
+      const erreurCompte = validerEmail(compteEmail) || (password ? validerMotDePasse(password) : null);
       if (erreurCompte) {
         await client.query('ROLLBACK');
         return res.status(400).json({ error: erreurCompte });
@@ -284,7 +316,7 @@ router.put('/:id', authRequired, async (req, res) => {
         await client.query('ROLLBACK');
         return res.status(409).json({ error: 'Un utilisateur avec cet email existe déjà.' });
       }
-      const passwordHash = await bcrypt.hash(password, BCRYPT_COUT);
+      const passwordHash = await hashMotDePasseInitial(password);
       const ur = await client.query(
         `INSERT INTO users (email, role, password) VALUES ($1,$2,$3) RETURNING id`,
         [compteEmail.toLowerCase(), ROLE_TEXTE_NEUTRE, passwordHash]
@@ -300,8 +332,7 @@ router.put('/:id', authRequired, async (req, res) => {
         entrepriseId: req.user.entrepriseId, userId: req.user.sub, email: req.user.email,
         action: 'account_created', req, details: { targetUserId: userId, targetEmail: compteEmail, via: 'PUT /salaries/:id' },
       });
-      try { await sendWelcomeEmail(compteEmail, password, prenom || before.prenom); }
-      catch (mailErr) { console.error('[PUT /salaries] email non envoyé', mailErr); }
+      if (!password) compteAOuvrir = { userId, email: compteEmail, prenom: prenom || before.prenom };
     }
 
     const upd = await client.query(
@@ -381,7 +412,8 @@ router.put('/:id', authRequired, async (req, res) => {
     // Journal des modifications (hors transaction : best-effort, comme pour les devis).
     await logFieldChanges(req.user.entrepriseId, 'salarie', Number(req.params.id), req.user.sub, before, after, TRACKED_FIELDS);
 
-    return res.json({ salarie: await fetchSalarie(req.params.id) });
+    const acces = compteAOuvrir ? await ouvrirAcces(req, compteAOuvrir) : null;
+    return res.json({ salarie: await fetchSalarie(req.params.id), acces });
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('[PUT /salaries]', err);
@@ -394,6 +426,35 @@ router.put('/:id', authRequired, async (req, res) => {
 // ═══════════════════════════════════════════════════════════
 //  SUPPRESSION (désactive le compte, ne le supprime pas)
 // ═══════════════════════════════════════════════════════════
+
+// Nouveau lien d'accès pour un salarié qui a déjà un compte (lien d'activation expiré, mot de
+// passe perdu sans email configuré). Le lien remplace les précédents. Jamais pour le compte
+// propriétaire : sinon toute personne ayant le droit de modifier les salariés pourrait se
+// fabriquer un accès au compte qui administre l'entreprise.
+router.post('/:id/lien-acces', authRequired, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT s.user_id, s.prenom, u.email, eu.statut
+         FROM salaries s
+         LEFT JOIN users u ON u.id = s.user_id
+         LEFT JOIN entreprise_utilisateurs eu ON eu.user_id = s.user_id AND eu.entreprise_id = s.entreprise_id
+        WHERE s.id = $1 AND s.entreprise_id = $2`,
+      [req.params.id, req.user.entrepriseId]
+    );
+    const s = rows[0];
+    if (!s) return res.status(404).json({ error: 'Salarié introuvable.' });
+    if (!s.user_id) return res.status(400).json({ error: 'Ce salarié n’a pas de compte de connexion.' });
+    if (s.statut !== 'Actif') return res.status(400).json({ error: 'Ce compte est désactivé : réactivez-le d’abord.' });
+    if (await estProprietaire(req.user.entrepriseId, s.user_id)) {
+      return res.status(403).json({ error: 'Impossible pour le compte propriétaire : utilisez « Mot de passe oublié » depuis l’écran de connexion.' });
+    }
+    const acces = await ouvrirAcces(req, { userId: s.user_id, email: s.email, prenom: s.prenom });
+    return res.status(201).json({ acces });
+  } catch (err) {
+    console.error('[POST /salaries/:id/lien-acces]', err);
+    return res.status(500).json({ error: 'Erreur lors de la création du lien d’accès.' });
+  }
+});
 
 router.delete('/:id', authRequired, async (req, res) => {
   try {

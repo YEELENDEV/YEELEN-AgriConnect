@@ -24,10 +24,12 @@ async function lireEnBase(entrepriseId, userId) {
     `SELECT e.proprietaire_user_id AS proprietaire,
             eu.role_id             AS "roleId",
             eu.statut,
+            u.token_version        AS "tokenVersion",
             rr.ressource,
             rr.action
        FROM entreprises e
        JOIN entreprise_utilisateurs eu ON eu.entreprise_id = e.id AND eu.user_id = $2
+       JOIN users u ON u.id = eu.user_id
        LEFT JOIN role_restrictions rr ON rr.role_id = eu.role_id
       WHERE e.id = $1`,
     [entrepriseId, userId]
@@ -48,6 +50,8 @@ async function lireEnBase(entrepriseId, userId) {
     actif: rows[0].statut === 'Actif',
     proprietaire: rows[0].proprietaire === userId,
     roleId: rows[0].roleId,
+    // Version de session en base : un jeton dont le claim `tv` diffère a été révoqué.
+    tokenVersion: rows[0].tokenVersion ?? 0,
     restrictions,
   };
 }
@@ -84,6 +88,14 @@ export function invaliderCacheRoles(entrepriseId, userId = null) {
   if (userId !== null) { cache.delete(`${entrepriseId}:${userId}`); return; }
   for (const cle of cache.keys()) {
     if (cle.startsWith(`${entrepriseId}:`)) cache.delete(cle);
+  }
+}
+
+// Toutes les entrées d'un utilisateur, quelle que soit l'entreprise : à appeler quand sa
+// version de session change (mot de passe changé ou réinitialisé, déconnexion des appareils).
+export function invaliderCacheUtilisateur(userId) {
+  for (const cle of cache.keys()) {
+    if (cle.endsWith(`:${userId}`)) cache.delete(cle);
   }
 }
 

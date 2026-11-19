@@ -23,7 +23,7 @@ const LIBELLES_ACTIONS = {
 
 // Routes publiques d'authentification : un jeton périmé resté dans le navigateur (compte
 // désactivé) ne doit pas empêcher quelqu'un d'autre de se connecter depuis ce poste.
-const AUTH_PUBLIQUE = /^\/api\/auth\/(login|register|confirmer-inscription|renvoyer-code-inscription)$/;
+const AUTH_PUBLIQUE = /^\/api\/auth\/(login|register|confirmer-inscription|renvoyer-code-inscription|mot-de-passe-oublie|definir-mot-de-passe)$/;
 
 // Lu à chaque requête (et non figé au chargement) pour que les tests puissent le basculer.
 function modeObservation() {
@@ -54,6 +54,12 @@ export function creerPermissionGuard(app) {
     if (!resolution.rattache || !resolution.actif) {
       // 401 (et non 403) : le frontend déconnecte alors l'utilisateur (src/lib/api.js).
       return res.status(401).json({ error: 'Ce compte a été désactivé. Contactez votre administrateur.', reason: 'compte_desactive' });
+    }
+    // Session révoquée (lot 2a) : le mot de passe a changé, ou l'utilisateur a demandé à
+    // déconnecter ses autres appareils. Un jeton émis avant la révocation porte une version
+    // dépassée ; un jeton plus ancien que la colonne n'a pas de `tv`, lu comme 0.
+    if ((req.user.tv ?? 0) !== resolution.tokenVersion) {
+      return res.status(401).json({ error: 'Votre session a été fermée. Reconnectez-vous.', reason: 'session_revoquee' });
     }
 
     let permission;

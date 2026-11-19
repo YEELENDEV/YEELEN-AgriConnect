@@ -93,6 +93,29 @@ export async function renvoyerCodeInscription(email) {
   return request('/auth/renvoyer-code-inscription', { method: 'POST', body: JSON.stringify({ email }) });
 }
 
+// Lot 2a : mot de passe oublié, liens d'activation/réinitialisation, révocation des sessions.
+// changer-mot-de-passe et deconnecter-autres-appareils renvoient un nouveau jeton (les autres
+// sessions, y compris l'ancien jeton de cet appareil, sont fermées) : on le mémorise aussitôt.
+export async function motDePasseOublie(email) {
+  return request('/auth/mot-de-passe-oublie', { method: 'POST', body: JSON.stringify({ email }) });
+}
+
+export async function definirMotDePasse(jeton, password) {
+  return request('/auth/definir-mot-de-passe', { method: 'POST', body: JSON.stringify({ jeton, password }) });
+}
+
+export async function changerMotDePasse(actuel, nouveau) {
+  const data = await request('/auth/changer-mot-de-passe', { method: 'POST', body: JSON.stringify({ actuel, nouveau }) });
+  if (data.token) setToken(data.token);
+  return data;
+}
+
+export async function deconnecterAutresAppareils() {
+  const data = await request('/auth/deconnecter-autres-appareils', { method: 'POST' });
+  if (data.token) setToken(data.token);
+  return data;
+}
+
 export async function getMe() {
   return request('/auth/me');
 }
@@ -577,6 +600,11 @@ export async function createSalarie(payload) {
 
 export async function updateSalarie(id, payload) {
   return request(`/salaries/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+}
+
+// Nouveau lien d'activation (72 h, usage unique) pour un salarié qui a déjà un compte.
+export async function creerLienAcces(salarieId) {
+  return request('/salaries/' + encodeURIComponent(salarieId) + '/lien-acces', { method: 'POST' });
 }
 
 export async function deleteSalarie(id) {

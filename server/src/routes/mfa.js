@@ -156,7 +156,8 @@ router.post('/disable', authRequired, async (req, res) => {
     }
     if (!(await bcrypt.compare(password, user.password))) {
       await logAuditEvent({ entrepriseId: req.user.entrepriseId, userId: req.user.sub, email: user.email, action: 'mfa_disable_failed', req });
-      return res.status(401).json({ error: 'Mot de passe incorrect.' });
+      // 400 et non 401 : côté interface, un 401 vaut « session expirée » et déconnecte.
+      return res.status(400).json({ error: 'Mot de passe incorrect.', reason: 'mot_de_passe_incorrect' });
     }
 
     await pool.query(
