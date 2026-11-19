@@ -285,6 +285,7 @@ const HORS_PERIMETRE = {
   'POST /api/auth/definir-mot-de-passe': 'lien à usage unique (activation ou réinitialisation), sans compte connecté',
   'POST /api/auth/changer-mot-de-passe': 'sécurité de son propre compte',
   'POST /api/auth/deconnecter-autres-appareils': 'sécurité de son propre compte',
+  'POST /api/auth/deconnexion': 'fermeture de sa propre session, même expirée',
   'GET /api/auth/me': 'lecture de son propre compte',
 
   'POST /api/mfa/setup': 'sécurité de son propre compte',

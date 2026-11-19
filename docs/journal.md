@@ -5,6 +5,37 @@ Extrait de `CLAUDE.md` le 2026-08-28 pour alléger le contexte chargé à chaque
 
 ---
 
+### Lot 2b de l'audit : session par cookie HttpOnly — 2026-11-18
+
+Suite du lot 2a (S4). Avant : le JWT, valable 7 jours, était stocké en `localStorage` et lisible
+par tout script de la page — une seule faille XSS suffisait à voler la session.
+
+- **Cookie `agri_session`** HttpOnly, `SameSite=Strict`, `Secure` en production, `Path=/api`,
+  posé par la connexion, la confirmation d'inscription, le changement de mot de passe et la
+  déconnexion des autres appareils (`repondreAvecSession`). Le corps de la réponse ne contient
+  plus le jeton quand la requête vient du navigateur (en-tête `X-Requested-With: AgriConnect`) :
+  une XSS ne peut pas le récupérer en rappelant ces routes. Les clients d'API et les tests,
+  sans cet en-tête, le reçoivent toujours et continuent en Bearer.
+- **Durées** : jeton de 2 h (`JWT_EXPIRES_IN`), renouvelé dans le cookie dès qu'il a plus de
+  15 min ; claim `at` (heure de connexion) conservé, session refusée au-delà de 7 jours
+  (`SESSION_MAX_JOURS`), Bearer compris. Un jeton antérieur sans `at` est borné par son `iat`.
+- **CSRF** : une écriture portée par le cookie sans l'en-tête personnalisé → 403
+  `reason:'csrf'` (un site tiers ne peut pas poser cet en-tête sans pré-vol CORS, refusé par la
+  liste d'origines). Le Bearer en est exempté. CORS passe à `credentials: true` (origine toujours
+  vérifiée, jamais `*`).
+- **Déconnexion** : `POST /api/auth/deconnexion` efface le cookie (accessible même session
+  expirée). Le cookie est aussi effacé sur 401 `session_revoquee` / `compte_desactive` et sur un
+  jeton invalide.
+- **Frontend** : `credentials:'include'` + en-tête CSRF sur toutes les requêtes (y compris PDF et
+  signature publique de devis, qui part avec le cookie si le signataire est aussi connecté) ;
+  plus aucun jeton en `localStorage`, seulement le marqueur `agri-session` ; l'ancien
+  `agri-token` est supprimé au chargement (une reconnexion nécessaire après déploiement).
+- Tests : `session.test.js` (8), `api.test.js` adapté. Vérifié dans le navigateur : cookie
+  invisible à `document.cookie`, pas de jeton dans la réponse de connexion, session conservée
+  au rechargement, écriture sans en-tête refusée, déconnexion effective (401 ensuite).
+
+---
+
 ### Lot 2a de l'audit : comptes et sessions — 2026-11-18
 
 Le lot 2 de l'audit (S4, S5, S6) est découpé en deux : **2a** (révocation des sessions, liens

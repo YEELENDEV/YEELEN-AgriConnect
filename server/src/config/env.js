@@ -54,6 +54,9 @@ function resoudreJwtSecret() {
 export const env = {
   PORT: Number(process.env.PORT || 4000),
   JWT_SECRET: resoudreJwtSecret(),
-  JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '7d',
+  // Lot 2b : jeton court (inactivité), renouvelé tant que l'utilisateur est actif, dans la limite
+  // de SESSION_MAX_JOURS depuis la connexion (claim `at`, voir middleware/auth.js).
+  JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '2h',
+  SESSION_MAX_JOURS: Number(process.env.SESSION_MAX_JOURS || 7),
   APP_NAME: process.env.APP_NAME || 'YEELEN AgriConnect',
 };

@@ -7,7 +7,7 @@ import bcrypt from 'bcryptjs';
 // otplib 13 : import ESM natif (dual ESM/CJS). Voir le commentaire équivalent dans mfa.js.
 import { verify as verifyTotp } from 'otplib';
 import { pool } from '../db.js';
-import { authRequired, signerToken } from '../middleware/auth.js';
+import { authRequired, signerToken, repondreAvecSession, effacerCookieSession } from '../middleware/auth.js';
 import { validerMotDePasse, validerEmail, BCRYPT_COUT, HASH_FACTICE } from '../utils/motDePasse.js';
 import { CATEGORIES_PRODUITS_DEFAUT, CONGES_TYPES_DEFAUT, PAYMENT_TERMS_DEFAUT } from '../utils/referentielsDefaut.js';
 import { logAuditEvent, getAuditLog, countRecentAuditEvents, countRecentAuditEventsByIp, extraireIp } from '../utils/auditLog.js';
@@ -295,8 +295,8 @@ router.post('/confirmer-inscription', async (req, res) => {
 
     const isPlatformAdmin = row.is_platform_admin === true;
     const token = signerToken({ sub: row.id, email: row.email, entrepriseId: row.entreprise_id, role: row.role, isPlatformAdmin, tv: row.token_version });
-    return res.json({
-      token,
+    // Cookie de session + jeton dans le corps pour les seuls clients d'API (lot 2b).
+    return repondreAvecSession(req, res, token, {
       user: { id: row.id, email: row.email, role: row.role, createdAt: row.created_at, isPlatformAdmin },
       entreprise: { id: row.entreprise_id, nom: row.entreprise_nom, typeCompte: row.type_compte, devise: row.devise, locale: row.locale, fuseau: row.fuseau },
     });
@@ -496,8 +496,8 @@ router.post('/login', async (req, res) => {
 
     await logAuditEvent({ entrepriseId, userId: user.id, email: user.email, action: 'login_success', req });
 
-    return res.json({
-      token,
+    // Cookie de session + jeton dans le corps pour les seuls clients d'API (lot 2b).
+    return repondreAvecSession(req, res, token, {
       user: { id: user.id, email: user.email, role, createdAt: user.created_at, isPlatformAdmin },
       entreprise: { id: entrepriseId, nom: entrepriseNom, devise: entrepriseDevise, locale: entrepriseLocale, fuseau: entrepriseFuseau },
     });
@@ -576,6 +576,8 @@ router.post('/definir-mot-de-passe', async (req, res) => {
 
 // Nouvelle version de session pour l'utilisateur connecté : toutes ses autres sessions sont
 // fermées ; la session courante reçoit un jeton neuf pour continuer sans se reconnecter.
+// Avec un nouveau mot de passe (ressaisie de l'actuel), la durée absolue repart de zéro ; sinon
+// l'heure de connexion d'origine (`at`) est conservée.
 async function revoquerAutresSessions(req, nouveauHash = null) {
   const { rows } = await pool.query(
     `UPDATE users SET token_version = token_version + 1${nouveauHash ? ', password = $2' : ''}
@@ -584,7 +586,8 @@ async function revoquerAutresSessions(req, nouveauHash = null) {
   );
   invaliderCacheUtilisateur(req.user.sub);
   const { sub, email, entrepriseId, role, isPlatformAdmin } = req.user;
-  return signerToken({ sub, email, entrepriseId, role, isPlatformAdmin, tv: rows[0].token_version });
+  const at = nouveauHash ? undefined : (req.user.at ?? req.user.iat);
+  return signerToken({ sub, email, entrepriseId, role, isPlatformAdmin, tv: rows[0].token_version, at });
 }
 
 // ─── POST /api/auth/changer-mot-de-passe ───────────────────────────────────
@@ -610,7 +613,7 @@ router.post('/changer-mot-de-passe', authRequired, async (req, res) => {
     }
     const token = await revoquerAutresSessions(req, await bcrypt.hash(nouveau, BCRYPT_COUT));
     await logAuditEvent({ entrepriseId: req.user.entrepriseId, userId: req.user.sub, email, action: 'mot_de_passe_change', req });
-    return res.json({ ok: true, token });
+    return repondreAvecSession(req, res, token, { ok: true });
   } catch (err) {
     console.error('[changer-mot-de-passe]', err);
     return res.status(500).json({ error: 'Erreur lors du changement de mot de passe.' });
@@ -623,11 +626,20 @@ router.post('/deconnecter-autres-appareils', authRequired, async (req, res) => {
   try {
     const token = await revoquerAutresSessions(req);
     await logAuditEvent({ entrepriseId: req.user.entrepriseId, userId: req.user.sub, email: req.user.email, action: 'sessions_revoquees', req });
-    return res.json({ ok: true, token });
+    return repondreAvecSession(req, res, token, { ok: true });
   } catch (err) {
     console.error('[deconnecter-autres-appareils]', err);
     return res.status(500).json({ error: 'Erreur lors de la déconnexion des autres appareils.' });
   }
+});
+
+// ─── POST /api/auth/deconnexion ────────────────────────────────────────────
+// Efface le cookie de session de CET appareil (lot 2b). Sans authentification requise : une
+// session déjà expirée doit pouvoir se fermer proprement. Les autres appareils restent connectés
+// (voir deconnecter-autres-appareils pour les fermer aussi).
+router.post('/deconnexion', (req, res) => {
+  effacerCookieSession(res);
+  return res.json({ ok: true });
 });
 
 // ─── GET /api/auth/me ──────────────────────────────────────────────────────
