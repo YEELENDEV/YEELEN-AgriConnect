@@ -7,6 +7,7 @@ import express from 'express';
 import { authRequired } from '../middleware/auth.js';
 import { pool } from '../db.js';
 import { regenererVariantes } from '../utils/variantesGenerator.js';
+import { log } from '../utils/journal.js';
 
 const router = express.Router();
 
@@ -80,7 +81,7 @@ router.get('/', authRequired, async (req, res) => {
     const lignesParTemplate = await chargerLignesAttributs(rows.map((r) => r.id));
     return res.json({ templates: rows.map((t) => ({ ...t, attributLignes: lignesParTemplate.get(t.id) || [] })) });
   } catch (err) {
-    console.error('[GET /produit-templates]', err);
+    log.error('[GET /produit-templates]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des gabarits.' });
   }
 });
@@ -106,7 +107,7 @@ router.get('/:id', authRequired, async (req, res) => {
     );
     return res.json({ template: { ...rows[0], attributLignes: lignes.get(rows[0].id) || [], variantes } });
   } catch (err) {
-    console.error('[GET /produit-templates/:id]', err);
+    log.error('[GET /produit-templates/:id]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération du gabarit.' });
   }
 });
@@ -150,7 +151,7 @@ router.post('/', authRequired, async (req, res) => {
     return res.status(201).json({ template: rows[0] });
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error('[POST /produit-templates]', err);
+    log.error('[POST /produit-templates]', err);
     return res.status(500).json({ error: 'Erreur lors de la création du gabarit.' });
   } finally {
     client.release();
@@ -204,7 +205,7 @@ router.put('/:id', authRequired, async (req, res) => {
     return res.json({ template: rows[0] });
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error('[PUT /produit-templates/:id]', err);
+    log.error('[PUT /produit-templates/:id]', err);
     return res.status(500).json({ error: 'Erreur lors de la mise à jour du gabarit.' });
   } finally {
     client.release();
@@ -224,7 +225,7 @@ router.post('/:id/regenerer-variantes', authRequired, async (req, res) => {
     return res.json({ variantesCreees: crees.length, total });
   } catch (err) {
     const status = err.status || 500;
-    console.error('[POST /produit-templates/:id/regenerer-variantes]', err);
+    log.error('[POST /produit-templates/:id/regenerer-variantes]', err);
     return res.status(status).json({ error: status === 400 ? err.message : 'Erreur lors de la génération des variantes.' });
   }
 });
@@ -241,7 +242,7 @@ router.delete('/:id', authRequired, async (req, res) => {
     if (result.rowCount === 0) return res.status(404).json({ error: 'Gabarit introuvable.' });
     return res.json({ success: true });
   } catch (err) {
-    console.error('[DELETE /produit-templates/:id]', err);
+    log.error('[DELETE /produit-templates/:id]', err);
     return res.status(500).json({ error: 'Erreur lors de la suppression.' });
   }
 });

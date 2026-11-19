@@ -12,6 +12,7 @@ import express from 'express';
 import { authRequired } from '../middleware/auth.js';
 import { pool } from '../db.js';
 import { ajusterInventaire, mettreAuRebut } from '../utils/stockSync.js';
+import { log } from '../utils/journal.js';
 
 const router = express.Router();
 
@@ -137,7 +138,7 @@ router.get('/', authRequired, async (req, res) => {
     );
     return res.json({ stocks: result.rows });
   } catch (err) {
-    console.error('[GET /produits]', err);
+    log.error('[GET /produits]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des produits.' });
   }
 });
@@ -176,7 +177,7 @@ router.post('/', authRequired, async (req, res) => {
     );
     return res.status(201).json({ stock: result.rows[0] });
   } catch (err) {
-    console.error('[POST /produits]', err);
+    log.error('[POST /produits]', err);
     return res.status(500).json({ error: 'Erreur lors de la création du produit.' });
   }
 });
@@ -237,7 +238,7 @@ router.put('/:id', authRequired, async (req, res) => {
     );
     return res.json({ stock: updated.rows[0] });
   } catch (err) {
-    console.error('[PUT /produits]', err);
+    log.error('[PUT /produits]', err);
     return res.status(500).json({ error: 'Erreur lors de la mise à jour.' });
   }
 });
@@ -251,7 +252,7 @@ router.delete('/:id', authRequired, async (req, res) => {
     if (result.rows.length === 0) return res.status(404).json({ error: 'Produit introuvable.' });
     return res.json({ success: true });
   } catch (err) {
-    console.error('[DELETE /produits]', err);
+    log.error('[DELETE /produits]', err);
     return res.status(500).json({ error: 'Erreur lors de la suppression.' });
   }
 });
@@ -324,7 +325,7 @@ router.get('/evolution-stock', authRequired, async (req, res) => {
       sansCout: actuel.rows[0].sansCout,
     });
   } catch (err) {
-    console.error('[GET /produits/evolution-stock]', err);
+    log.error('[GET /produits/evolution-stock]', err);
     return res.status(500).json({ error: "Erreur lors du calcul de l'evolution du stock." });
   }
 });
@@ -367,7 +368,7 @@ router.get('/stock-emplacements', authRequired, async (req, res) => {
     );
     return res.json({ lignes: result.rows });
   } catch (err) {
-    console.error('[GET /produits/stock-emplacements]', err);
+    log.error('[GET /produits/stock-emplacements]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération du stock par emplacement.' });
   }
 });
@@ -407,7 +408,7 @@ router.get('/mouvements', authRequired, async (req, res) => {
     );
     return res.json({ mouvements: result.rows });
   } catch (err) {
-    console.error('[GET /produits/mouvements]', err);
+    log.error('[GET /produits/mouvements]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des mouvements.' });
   }
 });
@@ -524,7 +525,7 @@ router.post('/inventaire', authRequired, async (req, res) => {
       ...(ecart === 0 ? { message: 'Aucun écart : le stock était juste.' } : {}),
     });
   } catch (err) {
-    console.error('[POST /produits/inventaire]', err);
+    log.error('[POST /produits/inventaire]', err);
     return res.status(500).json({ error: "Erreur lors de l'ajustement d'inventaire." });
   }
 });
@@ -555,7 +556,7 @@ router.post('/rebuts', authRequired, async (req, res) => {
 
     return res.status(201).json({ quantite: await relireQuantite(req.user.entrepriseId, produitId) });
   } catch (err) {
-    console.error('[POST /produits/rebuts]', err);
+    log.error('[POST /produits/rebuts]', err);
     return res.status(500).json({ error: 'Erreur lors de la mise au rebut.' });
   }
 });
@@ -651,7 +652,7 @@ router.post('/transferts', authRequired, async (req, res) => {
     return res.status(201).json({ success: true });
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error('[POST /produits/transferts]', err);
+    log.error('[POST /produits/transferts]', err);
     return res.status(500).json({ error: 'Erreur lors du transfert.' });
   } finally {
     client.release();
@@ -713,7 +714,7 @@ router.get('/previsionnel', authRequired, async (req, res) => {
 
     return res.json({ lignes, commandesPartielles: partiels.rows[0].n });
   } catch (err) {
-    console.error('[GET /produits/previsionnel]', err);
+    log.error('[GET /produits/previsionnel]', err);
     return res.status(500).json({ error: 'Erreur lors du calcul du stock prévisionnel.' });
   }
 });
@@ -729,7 +730,7 @@ router.get('/:id/mouvements', authRequired, async (req, res) => {
     );
     return res.json({ mouvements: result.rows });
   } catch (err) {
-    console.error('[GET /produits/:id/mouvements]', err);
+    log.error('[GET /produits/:id/mouvements]', err);
     return res.status(500).json({ error: "Erreur lors de la récupération de l'historique." });
   }
 });
@@ -785,7 +786,7 @@ router.get('/lots-perimes', authRequired, async (req, res) => {
     );
     return res.json({ lots: rows });
   } catch (err) {
-    console.error('[GET /produits/lots-perimes]', err);
+    log.error('[GET /produits/lots-perimes]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des lots.' });
   }
 });
@@ -802,7 +803,7 @@ router.get('/:id/lots', authRequired, async (req, res) => {
     );
     return res.json({ lots: rows });
   } catch (err) {
-    console.error('[GET /produits/:id/lots]', err);
+    log.error('[GET /produits/:id/lots]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des lots.' });
   }
 });
@@ -824,7 +825,7 @@ router.post('/:id/lots', authRequired, async (req, res) => {
     const { rows } = await pool.query(`SELECT ${LOT_COLUMNS} FROM stock_lots l WHERE l.id = $1`, [ins.rows[0].id]);
     return res.status(201).json({ lot: rows[0] });
   } catch (err) {
-    console.error('[POST /produits/:id/lots]', err);
+    log.error('[POST /produits/:id/lots]', err);
     return res.status(500).json({ error: 'Erreur lors de la création du lot.' });
   }
 });
@@ -844,7 +845,7 @@ router.put('/lots/:lotId', authRequired, async (req, res) => {
     const { rows } = await pool.query(`SELECT ${LOT_COLUMNS} FROM stock_lots l WHERE l.id = $1`, [req.params.lotId]);
     return res.json({ lot: rows[0] });
   } catch (err) {
-    console.error('[PUT /produits/lots/:lotId]', err);
+    log.error('[PUT /produits/lots/:lotId]', err);
     return res.status(500).json({ error: 'Erreur lors de la mise à jour du lot.' });
   }
 });
@@ -858,7 +859,7 @@ router.delete('/lots/:lotId', authRequired, async (req, res) => {
     if (result.rows.length === 0) return res.status(404).json({ error: 'Lot introuvable.' });
     return res.json({ success: true });
   } catch (err) {
-    console.error('[DELETE /produits/lots/:lotId]', err);
+    log.error('[DELETE /produits/lots/:lotId]', err);
     return res.status(500).json({ error: 'Erreur lors de la suppression du lot.' });
   }
 });

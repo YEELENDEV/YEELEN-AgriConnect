@@ -5,6 +5,7 @@
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';
 import { pool } from '../db.js';
+import { log } from '../utils/journal.js';
 
 const router = express.Router();
 
@@ -23,7 +24,7 @@ router.get('/departements', authRequired, async (req, res) => {
     );
     res.json({ departements: rows });
   } catch (err) {
-    console.error('[GET /rh/departements]', err);
+    log.error('[GET /rh/departements]', err);
     res.status(500).json({ error: 'Erreur lors de la récupération des départements.' });
   }
 });
@@ -41,7 +42,7 @@ router.post('/departements', authRequired, async (req, res) => {
     res.status(201).json({ departement: rows[0] });
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ error: 'Un département porte déjà ce nom.' });
-    console.error('[POST /rh/departements]', err);
+    log.error('[POST /rh/departements]', err);
     res.status(500).json({ error: 'Erreur lors de la création du département.' });
   }
 });
@@ -59,7 +60,7 @@ router.put('/departements/:id', authRequired, async (req, res) => {
     res.json({ departement: rows[0] });
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ error: 'Un département porte déjà ce nom.' });
-    console.error('[PUT /rh/departements/:id]', err);
+    log.error('[PUT /rh/departements/:id]', err);
     res.status(500).json({ error: 'Erreur lors de la mise à jour.' });
   }
 });
@@ -73,7 +74,7 @@ router.delete('/departements/:id', authRequired, async (req, res) => {
     if (rowCount === 0) return res.status(404).json({ error: 'Département introuvable.' });
     res.json({ success: true }); // les salaries.departement_id / postes.departement_id passent à NULL (ON DELETE SET NULL)
   } catch (err) {
-    console.error('[DELETE /rh/departements/:id]', err);
+    log.error('[DELETE /rh/departements/:id]', err);
     res.status(500).json({ error: 'Erreur lors de la suppression.' });
   }
 });
@@ -92,7 +93,7 @@ router.get('/postes', authRequired, async (req, res) => {
     );
     res.json({ postes: rows });
   } catch (err) {
-    console.error('[GET /rh/postes]', err);
+    log.error('[GET /rh/postes]', err);
     res.status(500).json({ error: 'Erreur lors de la récupération des postes.' });
   }
 });
@@ -110,7 +111,7 @@ router.post('/postes', authRequired, async (req, res) => {
     res.status(201).json({ poste: rows[0] });
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ error: 'Un poste porte déjà cet intitulé.' });
-    console.error('[POST /rh/postes]', err);
+    log.error('[POST /rh/postes]', err);
     res.status(500).json({ error: 'Erreur lors de la création du poste.' });
   }
 });
@@ -128,7 +129,7 @@ router.put('/postes/:id', authRequired, async (req, res) => {
     res.json({ poste: rows[0] });
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ error: 'Un poste porte déjà cet intitulé.' });
-    console.error('[PUT /rh/postes/:id]', err);
+    log.error('[PUT /rh/postes/:id]', err);
     res.status(500).json({ error: 'Erreur lors de la mise à jour.' });
   }
 });
@@ -142,7 +143,7 @@ router.delete('/postes/:id', authRequired, async (req, res) => {
     if (rowCount === 0) return res.status(404).json({ error: 'Poste introuvable.' });
     res.json({ success: true }); // salaries.poste_id => NULL (ON DELETE SET NULL) ; salaries.poste (texte) inchangé
   } catch (err) {
-    console.error('[DELETE /rh/postes/:id]', err);
+    log.error('[DELETE /rh/postes/:id]', err);
     res.status(500).json({ error: 'Erreur lors de la suppression.' });
   }
 });
@@ -156,7 +157,7 @@ router.get('/jours-feries', authRequired, async (req, res) => {
     );
     res.json({ joursFeries: rows });
   } catch (err) {
-    console.error('[GET /rh/jours-feries]', err);
+    log.error('[GET /rh/jours-feries]', err);
     res.status(500).json({ error: 'Erreur lors de la récupération des jours fériés.' });
   }
 });
@@ -174,7 +175,7 @@ router.post('/jours-feries', authRequired, async (req, res) => {
     );
     res.status(201).json({ jourFerie: rows[0] });
   } catch (err) {
-    console.error('[POST /rh/jours-feries]', err);
+    log.error('[POST /rh/jours-feries]', err);
     res.status(500).json({ error: 'Erreur lors de la création du jour férié.' });
   }
 });
@@ -188,7 +189,7 @@ router.delete('/jours-feries/:id', authRequired, async (req, res) => {
     if (rowCount === 0) return res.status(404).json({ error: 'Jour férié introuvable.' });
     res.json({ success: true });
   } catch (err) {
-    console.error('[DELETE /rh/jours-feries/:id]', err);
+    log.error('[DELETE /rh/jours-feries/:id]', err);
     res.status(500).json({ error: 'Erreur lors de la suppression.' });
   }
 });
@@ -203,7 +204,7 @@ router.get('/conges-types', authRequired, async (req, res) => {
     );
     res.json({ congesTypes: rows });
   } catch (err) {
-    console.error('[GET /rh/conges-types]', err);
+    log.error('[GET /rh/conges-types]', err);
     res.status(500).json({ error: 'Erreur lors de la récupération des types de congés.' });
   }
 });
@@ -221,7 +222,7 @@ router.post('/conges-types', authRequired, async (req, res) => {
     res.status(201).json({ congeType: rows[0] });
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ error: 'Un type de congé porte déjà ce nom.' });
-    console.error('[POST /rh/conges-types]', err);
+    log.error('[POST /rh/conges-types]', err);
     res.status(500).json({ error: 'Erreur lors de la création du type de congé.' });
   }
 });
@@ -251,7 +252,7 @@ router.put('/conges-types/:id', authRequired, async (req, res) => {
     res.json({ congeType: rows[0] });
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ error: 'Un type de congé porte déjà ce nom.' });
-    console.error('[PUT /rh/conges-types/:id]', err);
+    log.error('[PUT /rh/conges-types/:id]', err);
     res.status(500).json({ error: 'Erreur lors de la mise à jour.' });
   }
 });
@@ -274,7 +275,7 @@ router.delete('/conges-types/:id', authRequired, async (req, res) => {
     if (rowCount === 0) return res.status(404).json({ error: 'Type de congé introuvable.' });
     res.json({ success: true });
   } catch (err) {
-    console.error('[DELETE /rh/conges-types/:id]', err);
+    log.error('[DELETE /rh/conges-types/:id]', err);
     res.status(500).json({ error: 'Erreur lors de la suppression.' });
   }
 });

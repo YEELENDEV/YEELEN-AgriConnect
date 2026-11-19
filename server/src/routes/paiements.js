@@ -5,6 +5,7 @@ import express from 'express';
 import { authRequired } from '../middleware/auth.js';
 import { pool } from '../db.js';
 import { creerPaiementAutonome, allouerPaiement } from '../utils/accountMove.js';
+import { log } from '../utils/journal.js';
 
 const router = express.Router();
 const ecriture = [authRequired];
@@ -32,7 +33,7 @@ router.get('/', authRequired, async (req, res) => {
     const filtered = req.query.unallocated === '1' ? rows.filter((r) => r.unallocated > 0.01) : rows;
     return res.json({ paiements: filtered });
   } catch (err) {
-    console.error('[GET /paiements]', err);
+    log.error('[GET /paiements]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des paiements.' });
   }
 });
@@ -51,7 +52,7 @@ router.post('/', ...ecriture, async (req, res) => {
     return res.status(201).json({ paiement: r });
   } catch (err) {
     await client.query('ROLLBACK');
-    if (!err.status) console.error('[POST /paiements]', err);
+    if (!err.status) log.error('[POST /paiements]', err);
     return res.status(err.status || 500).json({ error: err.status ? err.message : 'Erreur lors de la création du paiement.' });
   } finally {
     client.release();
@@ -72,7 +73,7 @@ router.post('/:id/allocate', ...ecriture, async (req, res) => {
     return res.json({ allocation: r });
   } catch (err) {
     await client.query('ROLLBACK');
-    if (!err.status) console.error('[POST /paiements/:id/allocate]', err);
+    if (!err.status) log.error('[POST /paiements/:id/allocate]', err);
     return res.status(err.status || 500).json({ error: err.status ? err.message : "Erreur lors de l'affectation." });
   } finally {
     client.release();

@@ -11,6 +11,7 @@
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';
 import { pool } from '../db.js';
+import { log } from '../utils/journal.js';
 
 const router = express.Router();
 
@@ -102,7 +103,7 @@ router.get('/', authRequired, async (req, res) => {
     const withTags = await attachTags(req.user.entrepriseId, result.rows);
     return res.json({ contacts: withTags });
   } catch (err) {
-    console.error('[GET /contacts]', err);
+    log.error('[GET /contacts]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des contacts.' });
   }
 });
@@ -140,7 +141,7 @@ router.post('/', authRequired, async (req, res) => {
     const [withTags] = await attachTags(req.user.entrepriseId, complet.rows);
     return res.status(201).json({ contact: withTags });
   } catch (err) {
-    console.error('[POST /contacts]', err);
+    log.error('[POST /contacts]', err);
     return res.status(500).json({ error: 'Erreur lors de la création du contact.' });
   }
 });
@@ -209,7 +210,7 @@ router.put('/:id', authRequired, async (req, res) => {
       // Violation du CHECK (est_client OR est_fournisseur) — les deux flags retombent à false.
       return res.status(400).json({ error: 'Un contact doit être client, fournisseur, ou les deux.' });
     }
-    console.error('[PUT /contacts]', err);
+    log.error('[PUT /contacts]', err);
     return res.status(500).json({ error: 'Erreur lors de la mise à jour du contact.' });
   }
 });
@@ -232,7 +233,7 @@ router.get('/:id/prix-effectifs', authRequired, async (req, res) => {
     );
     return res.json({ prix: result.rows });
   } catch (err) {
-    console.error('[GET /contacts/:id/prix-effectifs]', err);
+    log.error('[GET /contacts/:id/prix-effectifs]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des prix.' });
   }
 });
@@ -249,7 +250,7 @@ router.delete('/:id', authRequired, async (req, res) => {
       // Violation de clé étrangère : ce contact est référencé ailleurs (devis, etc.)
       return res.status(409).json({ error: 'Ce contact a des devis ou factures enregistrés et ne peut pas être supprimé.' });
     }
-    console.error('[DELETE /contacts]', err);
+    log.error('[DELETE /contacts]', err);
     return res.status(500).json({ error: 'Erreur lors de la suppression.' });
   }
 });

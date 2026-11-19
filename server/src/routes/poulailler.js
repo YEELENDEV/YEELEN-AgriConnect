@@ -3,6 +3,7 @@ import { authRequired } from '../middleware/auth.js';
 import { pool } from '../db.js';
 import { syncFinanceEntry, removeFinanceEntry, updateFinanceEntry } from '../utils/financeSync.js';
 import { logMouvementHistorique, getMouvementHistorique, getAllMouvementHistorique } from '../utils/mouvementHistorique.js';
+import { log } from '../utils/journal.js';
 
 const router = express.Router();
 
@@ -31,7 +32,7 @@ router.get('/mouvements', authRequired, async (req, res) => {
       : await pool.query(`SELECT ${MOUVEMENT_COLUMNS} FROM poulailler_mouvements WHERE entreprise_id = $1 ORDER BY date DESC, created_at DESC`, [req.user.entrepriseId]);
     return res.json({ mouvements: result.rows });
   } catch (err) {
-    console.error('[GET /poulailler/mouvements]', err);
+    log.error('[GET /poulailler/mouvements]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des mouvements.' });
   }
 });
@@ -62,7 +63,7 @@ router.post('/mouvements', authRequired, async (req, res) => {
 
     return res.status(201).json({ mouvement: result.rows[0] });
   } catch (err) {
-    console.error('[POST /poulailler/mouvements]', err);
+    log.error('[POST /poulailler/mouvements]', err);
     return res.status(500).json({ error: "Erreur lors de l'enregistrement du mouvement." });
   }
 });
@@ -117,7 +118,7 @@ router.put('/mouvements/:id', authRequired, async (req, res) => {
 
     return res.json({ mouvement: updated });
   } catch (err) {
-    console.error('[PUT /poulailler/mouvements]', err);
+    log.error('[PUT /poulailler/mouvements]', err);
     return res.status(500).json({ error: 'Erreur lors de la mise à jour du mouvement.' });
   }
 });
@@ -131,7 +132,7 @@ router.get('/livraisons', authRequired, async (req, res) => {
     const result = await pool.query(`SELECT ${LIVRAISON_COLUMNS} FROM poulailler_livraisons WHERE entreprise_id = $1 ORDER BY date DESC, created_at DESC`, [req.user.entrepriseId]);
     return res.json({ livraisons: result.rows });
   } catch (err) {
-    console.error('[GET /poulailler/livraisons]', err);
+    log.error('[GET /poulailler/livraisons]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des livraisons.' });
   }
 });
@@ -148,7 +149,7 @@ router.post('/livraisons', authRequired, async (req, res) => {
     );
     return res.status(201).json({ livraison: result.rows[0] });
   } catch (err) {
-    console.error('[POST /poulailler/livraisons]', err);
+    log.error('[POST /poulailler/livraisons]', err);
     return res.status(500).json({ error: "Erreur lors de l'enregistrement de la livraison." });
   }
 });
@@ -164,7 +165,7 @@ router.put('/livraisons/:id', authRequired, async (req, res) => {
     if (result.rows.length === 0) return res.status(404).json({ error: 'Livraison introuvable.' });
     return res.json({ livraison: result.rows[0] });
   } catch (err) {
-    console.error('[PUT /poulailler/livraisons]', err);
+    log.error('[PUT /poulailler/livraisons]', err);
     return res.status(500).json({ error: 'Erreur lors de la mise à jour.' });
   }
 });
@@ -176,7 +177,7 @@ router.delete('/livraisons/:id', authRequired, async (req, res) => {
     if (result.rowCount === 0) return res.status(404).json({ error: 'Livraison introuvable.' });
     return res.json({ success: true });
   } catch (err) {
-    console.error('[DELETE /poulailler/livraisons]', err);
+    log.error('[DELETE /poulailler/livraisons]', err);
     return res.status(500).json({ error: 'Erreur lors de la suppression.' });
   }
 });
@@ -190,7 +191,7 @@ router.get('/suivi', authRequired, async (req, res) => {
     const result = await pool.query(`SELECT ${SUIVI_COLUMNS} FROM poulailler_suivi WHERE entreprise_id = $1 ORDER BY date DESC, created_at DESC`, [req.user.entrepriseId]);
     return res.json({ suivi: result.rows });
   } catch (err) {
-    console.error('[GET /poulailler/suivi]', err);
+    log.error('[GET /poulailler/suivi]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération du suivi.' });
   }
 });
@@ -207,7 +208,7 @@ router.post('/suivi', authRequired, async (req, res) => {
     );
     return res.status(201).json({ entry: result.rows[0] });
   } catch (err) {
-    console.error('[POST /poulailler/suivi]', err);
+    log.error('[POST /poulailler/suivi]', err);
     return res.status(500).json({ error: "Erreur lors de l'enregistrement." });
   }
 });
@@ -238,7 +239,7 @@ router.delete('/mouvements/:id', authRequired, async (req, res) => {
 
     return res.json({ success: true });
   } catch (err) {
-    console.error('[DELETE /poulailler/mouvements]', err);
+    log.error('[DELETE /poulailler/mouvements]', err);
     return res.status(500).json({ error: 'Erreur lors de la suppression.' });
   }
 });
@@ -248,7 +249,7 @@ router.get('/mouvements/:id/historique', authRequired, async (req, res) => {
     const historique = await getMouvementHistorique(req.user.entrepriseId, 'Poulailler', req.params.id);
     return res.json({ historique });
   } catch (err) {
-    console.error('[GET /poulailler/mouvements/historique]', err);
+    log.error('[GET /poulailler/mouvements/historique]', err);
     return res.status(500).json({ error: "Erreur lors de la récupération de l'historique." });
   }
 });
@@ -258,7 +259,7 @@ router.get('/historique', authRequired, async (req, res) => {
     const historique = await getAllMouvementHistorique(req.user.entrepriseId, 'Poulailler');
     return res.json({ historique });
   } catch (err) {
-    console.error('[GET /poulailler/historique]', err);
+    log.error('[GET /poulailler/historique]', err);
     return res.status(500).json({ error: "Erreur lors de la récupération de l'historique." });
   }
 });

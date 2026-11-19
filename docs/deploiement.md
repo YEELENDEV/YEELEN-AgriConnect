@@ -143,6 +143,19 @@ docker compose logs -f caddy
 Un message contenant `certificate obtained successfully` confirme que le
 HTTPS public fonctionne.
 
+**Journaux du backend** (lot 3b) : en production, une ligne JSON par événement,
+avec une ligne d'accès par requête. Chaque ligne écrite pendant une requête porte
+son identifiant (`requete`), l'utilisateur et l'entreprise. Quand un utilisateur
+signale une erreur « … (réf. a1b2c3d4e5f6) », retrouver tout ce qui s'est passé
+pendant cette requête :
+
+```bash
+docker compose logs backend | grep a1b2c3d4e5f6
+docker compose logs backend --since 1h | grep '"niveau":"error"'   # erreurs de la dernière heure
+```
+
+`LOG_LEVEL=warn` dans `server/.env` réduit le volume (plus de lignes d'accès).
+
 ## 5. Appliquer les migrations
 
 Le backend **ne migre pas automatiquement au démarrage** (`server.js` vérifie

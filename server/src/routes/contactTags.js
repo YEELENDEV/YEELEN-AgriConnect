@@ -4,6 +4,7 @@
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';
 import { pool } from '../db.js';
+import { log } from '../utils/journal.js';
 
 const router = express.Router();
 
@@ -17,7 +18,7 @@ router.get('/', authRequired, async (req, res) => {
     );
     return res.json({ tags: result.rows });
   } catch (err) {
-    console.error('[GET /contact-tags]', err);
+    log.error('[GET /contact-tags]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des tags.' });
   }
 });
@@ -38,7 +39,7 @@ router.post('/', authRequired, async (req, res) => {
     if (err.code === '23505') {
       return res.status(409).json({ error: 'Ce tag existe déjà.' });
     }
-    console.error('[POST /contact-tags]', err);
+    log.error('[POST /contact-tags]', err);
     return res.status(500).json({ error: 'Erreur lors de la création du tag.' });
   }
 });
@@ -54,7 +55,7 @@ router.delete('/:id', authRequired, async (req, res) => {
     }
     return res.json({ success: true });
   } catch (err) {
-    console.error('[DELETE /contact-tags]', err);
+    log.error('[DELETE /contact-tags]', err);
     return res.status(500).json({ error: 'Erreur lors de la suppression.' });
   }
 });

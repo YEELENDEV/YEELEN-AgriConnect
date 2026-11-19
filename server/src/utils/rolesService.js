@@ -15,6 +15,7 @@
 // décisionnelle ici, puisqu'une entreprise renomme et redéfinit ses rôles quand elle veut. Tout
 // se lit en base, avec un cache à TTL court — même patron que moduleGuard.
 import { pool } from '../db.js';
+import { log } from './journal.js';
 
 const cache = new Map(); // `${entrepriseId}:${userId}` -> { valeur, t }
 const TTL = 60_000;
@@ -69,7 +70,7 @@ export async function restrictionsUtilisateur(entrepriseId, userId) {
     // Base illisible : on REFUSE (fail closed) — accorder des droits faute de pouvoir les lire
     // serait le contraire du but. Le résultat n'est pas mis en cache, pour qu'une erreur
     // passagère ne bloque pas l'utilisateur pendant toute la durée du TTL.
-    console.error('[rolesService] lecture des restrictions', err.message);
+    log.error('[rolesService] lecture des restrictions', err.message);
     return { rattache: false, actif: false, proprietaire: false, roleId: null, restrictions: {}, erreur: true };
   }
 }

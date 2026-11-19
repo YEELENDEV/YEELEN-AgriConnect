@@ -10,6 +10,7 @@
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';
 import { pool } from '../db.js';
+import { log } from '../utils/journal.js';
 
 const router = express.Router();
 
@@ -79,7 +80,7 @@ router.get('/', authRequired, async (req, res) => {
         );
     return res.json({ categories: result.rows });
   } catch (err) {
-    console.error('[GET /produit-categories]', err);
+    log.error('[GET /produit-categories]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des catégories.' });
   }
 });
@@ -101,7 +102,7 @@ router.post('/', authRequired, async (req, res) => {
     if (err.code === '23505') {
       return res.status(409).json({ error: 'Cette catégorie existe déjà pour ce module.' });
     }
-    console.error('[POST /produit-categories]', err);
+    log.error('[POST /produit-categories]', err);
     return res.status(500).json({ error: 'Erreur lors de la création de la catégorie.' });
   }
 });
@@ -134,7 +135,7 @@ router.put('/:id', authRequired, async (req, res) => {
     if (err.code === '23505') {
       return res.status(409).json({ error: 'Cette catégorie existe déjà pour ce module.' });
     }
-    console.error('[PUT /produit-categories]', err);
+    log.error('[PUT /produit-categories]', err);
     return res.status(500).json({ error: 'Erreur lors de la mise à jour.' });
   }
 });
@@ -159,7 +160,7 @@ router.delete('/:id', authRequired, async (req, res) => {
     if (err.code === '23503') {
       return res.status(409).json({ error: 'Cette catégorie est utilisée par au moins un produit — impossible de la supprimer.' });
     }
-    console.error('[DELETE /produit-categories]', err);
+    log.error('[DELETE /produit-categories]', err);
     return res.status(500).json({ error: 'Erreur lors de la suppression.' });
   }
 });

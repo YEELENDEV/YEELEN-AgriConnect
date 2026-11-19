@@ -18,6 +18,7 @@
 // disponible ne bouge pas) pour un risque réel sur une route déjà complexe (comptabilité,
 // hash de sécurisation). Elle reste une piste pour une étape future si un vrai besoin émerge.
 import { pool } from '../db.js';
+import { log } from './journal.js';
 
 // Résout la ligne de produit concernée par un identifiant (fiable) en priorité, avec un
 // repli par nom (insensible à la casse) pour les lignes plus anciennes ou les produits
@@ -195,7 +196,7 @@ async function mouvementStock(kind, module, entrepriseId, stockId, nom, delta, c
 
     await logMouvement({ entrepriseId, stockModule: module, stockId: row.id, stockNom: row.nom, delta: deltaConverti, ...ctx });
   } catch (err) {
-    console.error('[stockSync:produits]', err);
+    log.error('[stockSync:produits]', err);
   }
 }
 
@@ -303,7 +304,7 @@ export async function ajusterInventaire(entrepriseId, { stockId, produitNom, sto
         );
       }
     } catch (err) {
-      console.error('[stockSync:inventaire]', err);
+      log.error('[stockSync:inventaire]', err);
     }
   }
 }

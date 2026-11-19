@@ -10,6 +10,7 @@ import {
   consommerIngredientTransformation, restituerIngredientTransformation,
   produireSortieTransformation, retirerSortieTransformation,
 } from '../utils/stockSync.js';
+import { log } from '../utils/journal.js';
 
 const router = express.Router();
 
@@ -49,7 +50,7 @@ router.get('/', authRequired, async (req, res) => {
         );
     return res.json({ ordres: result.rows });
   } catch (err) {
-    console.error('[GET /ordres-transformation]', err);
+    log.error('[GET /ordres-transformation]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des ordres de transformation.' });
   }
 });
@@ -75,7 +76,7 @@ router.get('/:id', authRequired, async (req, res) => {
     );
     return res.json({ ordre: { ...ordre.rows[0], lignes: lignes.rows, lotsEntrants: lotsEntrants.rows } });
   } catch (err) {
-    console.error('[GET /ordres-transformation/:id]', err);
+    log.error('[GET /ordres-transformation/:id]', err);
     return res.status(500).json({ error: "Erreur lors de la récupération de l'ordre." });
   }
 });
@@ -173,7 +174,7 @@ router.post('/', authRequired, async (req, res) => {
     );
     return res.status(201).json({ ordre: created.rows[0] });
   } catch (err) {
-    console.error('[POST /ordres-transformation]', err);
+    log.error('[POST /ordres-transformation]', err);
     return res.status(500).json({ error: "Erreur lors de l'exécution de l'ordre de transformation." });
   }
 });
@@ -215,7 +216,7 @@ router.delete('/:id', authRequired, async (req, res) => {
     await pool.query('DELETE FROM ordres_transformation WHERE id = $1 AND entreprise_id = $2', [req.params.id, req.user.entrepriseId]);
     return res.json({ success: true });
   } catch (err) {
-    console.error('[DELETE /ordres-transformation/:id]', err);
+    log.error('[DELETE /ordres-transformation/:id]', err);
     return res.status(500).json({ error: "Erreur lors de l'annulation de l'ordre." });
   }
 });

@@ -10,6 +10,7 @@ import { pool } from '../db.js';
 import { logAuditEvent, countRecentAuditEvents } from '../utils/auditLog.js';
 import { generateEmailCode, verifyEmailCode, maskEmail, requestContext } from '../utils/mfaCode.js';
 import { sendMfaCodeEmail } from '../services/mailer.js';
+import { log } from '../utils/journal.js';
 
 const router = express.Router();
 
@@ -32,7 +33,7 @@ async function issueEmailCode(userId, email, req) {
   } catch (err) {
     // Même posture que devis.js : l'échec d'envoi n'annule pas l'opération côté serveur
     // (le code reste valide et re-demandable), mais on le signale.
-    console.error('[issueEmailCode] envoi email', err);
+    log.error('[issueEmailCode] envoi email', err);
     return { ok: false, status: 502, error: "Le code n'a pas pu être envoyé par email. Réessayez." };
   }
   return { ok: true, sentTo: maskEmail(email) };
@@ -66,7 +67,7 @@ router.post('/setup', authRequired, async (req, res) => {
     await pool.query('UPDATE users SET mfa_secret = $1 WHERE id = $2', [secret, req.user.sub]);
     return res.json({ method: 'totp', qrCode: qrCodeDataUrl, secret });
   } catch (err) {
-    console.error('[POST /mfa/setup]', err);
+    log.error('[POST /mfa/setup]', err);
     return res.status(500).json({ error: "Erreur lors du démarrage de l'activation." });
   }
 });
@@ -80,7 +81,7 @@ router.post('/resend', authRequired, async (req, res) => {
     if (!r.ok) return res.status(r.status).json({ error: r.error });
     return res.json({ sentTo: r.sentTo });
   } catch (err) {
-    console.error('[POST /mfa/resend]', err);
+    log.error('[POST /mfa/resend]', err);
     return res.status(500).json({ error: "Erreur lors du renvoi du code." });
   }
 });
@@ -132,7 +133,7 @@ router.post('/verify', authRequired, async (req, res) => {
     );
     return res.json({ success: true, method: 'totp' });
   } catch (err) {
-    console.error('[POST /mfa/verify]', err);
+    log.error('[POST /mfa/verify]', err);
     return res.status(500).json({ error: 'Erreur lors de la vérification.' });
   }
 });
@@ -167,7 +168,7 @@ router.post('/disable', authRequired, async (req, res) => {
     await logAuditEvent({ entrepriseId: req.user.entrepriseId, userId: req.user.sub, email: req.user.email, action: 'mfa_disabled', req });
     return res.json({ success: true });
   } catch (err) {
-    console.error('[POST /mfa/disable]', err);
+    log.error('[POST /mfa/disable]', err);
     return res.status(500).json({ error: 'Erreur lors de la désactivation.' });
   }
 });

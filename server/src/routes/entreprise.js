@@ -4,6 +4,7 @@ import { pool } from '../db.js';
 import { logAuditEvent } from '../utils/auditLog.js';
 import { MODULES_TARIFES, calculerPrixUSD } from '../utils/tarificationModules.js';
 import { invaliderCacheModules } from '../middleware/moduleGuard.js';
+import { log } from '../utils/journal.js';
 
 const router = express.Router();
 
@@ -23,7 +24,7 @@ router.get('/', authRequired, async (req, res) => {
     }
     return res.json({ entreprise: result.rows[0] });
   } catch (err) {
-    console.error('[GET /entreprise]', err);
+    log.error('[GET /entreprise]', err);
     return res.status(500).json({ error: "Erreur lors de la récupération de l'entreprise." });
   }
 });
@@ -68,7 +69,7 @@ router.put('/', authRequired, async (req, res) => {
     });
     return res.json({ entreprise: result.rows[0] });
   } catch (err) {
-    console.error('[PUT /entreprise]', err);
+    log.error('[PUT /entreprise]', err);
     return res.status(500).json({ error: 'Erreur lors de la mise à jour.' });
   }
 });
@@ -82,7 +83,7 @@ router.get('/banque-principale', authRequired, async (req, res) => {
     );
     return res.json(result.rows[0]);
   } catch (err) {
-    console.error('[GET /entreprise/banque-principale]', err);
+    log.error('[GET /entreprise/banque-principale]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération.' });
   }
 });
@@ -101,7 +102,7 @@ router.put('/banque-principale', authRequired, async (req, res) => {
     });
     return res.json({ success: true, banquePrincipaleId: banqueId || null });
   } catch (err) {
-    console.error('[PUT /entreprise/banque-principale]', err);
+    log.error('[PUT /entreprise/banque-principale]', err);
     return res.status(500).json({ error: 'Erreur lors de la mise à jour.' });
   }
 });
@@ -126,7 +127,7 @@ router.get('/onboarding-status', authRequired, async (req, res) => {
       salarieOk: hasSalarie || salarieNonRequis,
     });
   } catch (err) {
-    console.error('[GET /entreprise/onboarding-status]', err);
+    log.error('[GET /entreprise/onboarding-status]', err);
     return res.status(500).json({ error: "Erreur lors de la récupération du statut de configuration." });
   }
 });
@@ -144,7 +145,7 @@ router.put('/onboarding-status', authRequired, async (req, res) => {
     );
     return res.json({ success: true });
   } catch (err) {
-    console.error('[PUT /entreprise/onboarding-status]', err);
+    log.error('[PUT /entreprise/onboarding-status]', err);
     return res.status(500).json({ error: 'Erreur lors de la mise à jour.' });
   }
 });
@@ -161,7 +162,7 @@ router.get('/modules', authRequired, async (req, res) => {
     if (rows.length === 0) return res.status(404).json({ error: 'Entreprise introuvable.' });
     return res.json({ modules: rows[0].modules_actifs || {} });
   } catch (err) {
-    console.error('[GET /entreprise/modules]', err);
+    log.error('[GET /entreprise/modules]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des modules.' });
   }
 });
@@ -191,7 +192,7 @@ router.put('/modules', authRequired, async (req, res) => {
     const prix = calculerPrixUSD(rows[0].pays, rows[0].modules_actifs);
     return res.json({ modules: rows[0].modules_actifs, prix });
   } catch (err) {
-    console.error('[PUT /entreprise/modules]', err);
+    log.error('[PUT /entreprise/modules]', err);
     return res.status(500).json({ error: 'Erreur lors de la mise à jour des modules.' });
   }
 });

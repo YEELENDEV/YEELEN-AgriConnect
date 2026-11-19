@@ -14,6 +14,7 @@ import {
   round2, chargerTaxMap, journalParType, posterMove, enregistrerPaiementMove,
   verifierChaineJournal, reverseMove, allouerAvoir,
 } from '../utils/accountMove.js';
+import { log } from '../utils/journal.js';
 
 const router = express.Router();
 const ecriture = [authRequired];
@@ -189,7 +190,7 @@ router.get('/', authRequired, async (req, res) => {
     );
     return res.json({ factures: rows });
   } catch (err) {
-    console.error('[GET /factures]', err);
+    log.error('[GET /factures]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des factures.' });
   }
 });
@@ -236,7 +237,7 @@ router.get('/aged-receivable', authRequired, async (req, res) => {
     for (const p of partners) for (const k of Object.keys(totals)) totals[k] = round2(totals[k] + p.buckets[k]);
     return res.json({ asOf, partners, totals });
   } catch (err) {
-    console.error('[GET /factures/aged-receivable]', err);
+    log.error('[GET /factures/aged-receivable]', err);
     return res.status(500).json({ error: 'Erreur lors du calcul de la balance âgée.' });
   }
 });
@@ -258,7 +259,7 @@ router.get('/overdue', authRequired, async (req, res) => {
     );
     return res.json({ factures: rows });
   } catch (err) {
-    console.error('[GET /factures/overdue]', err);
+    log.error('[GET /factures/overdue]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des impayés.' });
   }
 });
@@ -275,7 +276,7 @@ router.post('/:id/mark-reminded', ...ecriture, async (req, res) => {
     if (rows.length === 0) return res.status(404).json({ error: 'Facture introuvable ou non applicable.' });
     return res.json({ facture: await getFactureComplete(req.params.id, req.user.entrepriseId) });
   } catch (err) {
-    console.error('[POST /factures/:id/mark-reminded]', err);
+    log.error('[POST /factures/:id/mark-reminded]', err);
     return res.status(500).json({ error: 'Erreur lors de l’enregistrement de la relance.' });
   }
 });
@@ -301,7 +302,7 @@ router.get('/credit-notes-unallocated', authRequired, async (req, res) => {
     );
     return res.json({ creditNotes: rows });
   } catch (err) {
-    console.error('[GET /factures/credit-notes-unallocated]', err);
+    log.error('[GET /factures/credit-notes-unallocated]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des avoirs.' });
   }
 });
@@ -320,7 +321,7 @@ router.post('/:id/allocate-credit', ...ecriture, async (req, res) => {
     return res.json({ allocation: r });
   } catch (err) {
     await client.query('ROLLBACK');
-    if (!err.status) console.error('[POST /factures/:id/allocate-credit]', err);
+    if (!err.status) log.error('[POST /factures/:id/allocate-credit]', err);
     return res.status(err.status || 500).json({ error: err.status ? err.message : "Erreur lors de l'affectation de l'avoir." });
   } finally {
     client.release();
@@ -341,7 +342,7 @@ router.get('/verify-hash', ...ecriture, async (req, res) => {
     const result = await verifierChaineJournal(pool, journalId, req.user.entrepriseId);
     return res.json({ ...result, hashMode: jr.rows[0].hashOn });
   } catch (err) {
-    console.error('[GET /factures/verify-hash]', err);
+    log.error('[GET /factures/verify-hash]', err);
     return res.status(500).json({ error: 'Erreur lors de la vérification.' });
   }
 });
@@ -460,7 +461,7 @@ router.get('/grand-livre', authRequired, async (req, res) => {
 
     return res.json({ periode: { debut, fin }, comptes });
   } catch (err) {
-    console.error('[GET /factures/grand-livre]', err);
+    log.error('[GET /factures/grand-livre]', err);
     return res.status(500).json({ error: 'Erreur lors de la construction du grand livre.' });
   }
 });
@@ -509,7 +510,7 @@ router.get('/balance', authRequired, async (req, res) => {
 
     return res.json({ periode: { debut, fin }, comptes, totaux });
   } catch (err) {
-    console.error('[GET /factures/balance]', err);
+    log.error('[GET /factures/balance]', err);
     return res.status(500).json({ error: 'Erreur lors de la construction de la balance.' });
   }
 });
@@ -581,7 +582,7 @@ router.get('/compte-resultat', authRequired, async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[GET /factures/compte-resultat]', err);
+    log.error('[GET /factures/compte-resultat]', err);
     return res.status(500).json({ error: 'Erreur lors de la construction du compte de résultat.' });
   }
 });
@@ -655,7 +656,7 @@ router.get('/bilan', authRequired, async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[GET /factures/bilan]', err);
+    log.error('[GET /factures/bilan]', err);
     return res.status(500).json({ error: 'Erreur lors de la construction du bilan.' });
   }
 });
@@ -758,7 +759,7 @@ router.get('/declaration-tva', authRequired, async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('[GET /factures/declaration-tva]', err);
+    log.error('[GET /factures/declaration-tva]', err);
     return res.status(500).json({ error: 'Erreur lors de la construction de la déclaration de TVA.' });
   }
 });
@@ -770,7 +771,7 @@ router.get('/:id', authRequired, async (req, res) => {
     if (!facture) return res.status(404).json({ error: 'Facture introuvable.' });
     return res.json({ facture });
   } catch (err) {
-    console.error('[GET /factures/:id]', err);
+    log.error('[GET /factures/:id]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération de la facture.' });
   }
 });
@@ -841,7 +842,7 @@ router.post('/', authRequired, async (req, res) => {
     return res.status(201).json({ facture: await getFactureComplete(moveId, req.user.entrepriseId) });
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error('[POST /factures]', err);
+    log.error('[POST /factures]', err);
     return res.status(err.status || 500).json({ error: err.status ? err.message : 'Erreur lors de la création de la facture.' });
   } finally {
     client.release();
@@ -901,7 +902,7 @@ router.put('/:id', authRequired, async (req, res) => {
     return res.json({ facture: await getFactureComplete(req.params.id, req.user.entrepriseId) });
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error('[PUT /factures/:id]', err);
+    log.error('[PUT /factures/:id]', err);
     return res.status(500).json({ error: 'Erreur lors de la mise à jour de la facture.' });
   } finally {
     client.release();
@@ -918,7 +919,7 @@ router.post('/:id/post', ...ecriture, async (req, res) => {
     return res.json({ facture: await getFactureComplete(req.params.id, req.user.entrepriseId) });
   } catch (err) {
     await client.query('ROLLBACK');
-    if (!err.status) console.error('[POST /factures/:id/post]', err);
+    if (!err.status) log.error('[POST /factures/:id/post]', err);
     return res.status(err.status || 500).json({ error: err.status ? err.message : 'Erreur lors de la validation de la facture.' });
   } finally {
     client.release();
@@ -949,7 +950,7 @@ router.post('/:id/button-draft', ...ecriture, async (req, res) => {
     return res.json({ facture: await getFactureComplete(req.params.id, req.user.entrepriseId) });
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error('[POST /factures/:id/button-draft]', err);
+    log.error('[POST /factures/:id/button-draft]', err);
     return res.status(500).json({ error: 'Erreur lors du retour en brouillon.' });
   } finally {
     client.release();
@@ -968,7 +969,7 @@ router.post('/:id/cancel', ...ecriture, async (req, res) => {
     await pool.query(`UPDATE account_move SET state = 'cancel' WHERE id = $1`, [req.params.id]);
     return res.json({ facture: await getFactureComplete(req.params.id, req.user.entrepriseId) });
   } catch (err) {
-    console.error('[POST /factures/:id/cancel]', err);
+    log.error('[POST /factures/:id/cancel]', err);
     return res.status(500).json({ error: 'Erreur lors de l’annulation.' });
   }
 });
@@ -987,7 +988,7 @@ router.delete('/:id', ...ecriture, async (req, res) => {
     await pool.query('DELETE FROM account_move WHERE id = $1', [req.params.id]);
     return res.json({ success: true });
   } catch (err) {
-    console.error('[DELETE /factures/:id]', err);
+    log.error('[DELETE /factures/:id]', err);
     return res.status(500).json({ error: 'Erreur lors de la suppression.' });
   }
 });
@@ -1006,7 +1007,7 @@ router.post('/:id/reverse', ...ecriture, async (req, res) => {
     return res.json({ facture: await getFactureComplete(creditNoteId, req.user.entrepriseId) });
   } catch (err) {
     await client.query('ROLLBACK');
-    if (!err.status) console.error('[POST /factures/:id/reverse]', err);
+    if (!err.status) log.error('[POST /factures/:id/reverse]', err);
     return res.status(err.status || 500).json({ error: err.status ? err.message : "Erreur lors de la création de l'avoir." });
   } finally {
     client.release();
@@ -1027,7 +1028,7 @@ router.post('/:id/register-payment', ...ecriture, async (req, res) => {
     return res.json({ facture: await getFactureComplete(req.params.id, req.user.entrepriseId) });
   } catch (err) {
     await client.query('ROLLBACK');
-    if (!err.status) console.error('[POST /factures/:id/register-payment]', err);
+    if (!err.status) log.error('[POST /factures/:id/register-payment]', err);
     return res.status(err.status || 500).json({ error: err.status ? err.message : "Erreur lors de l'enregistrement du paiement." });
   } finally {
     client.release();

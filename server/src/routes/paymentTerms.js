@@ -7,6 +7,7 @@
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';
 import { pool } from '../db.js';
+import { log } from '../utils/journal.js';
 
 const router = express.Router();
 
@@ -68,7 +69,7 @@ router.get('/', authRequired, async (req, res) => {
     }
     return res.json({ paymentTerms: terms.rows.map(t => ({ ...t, lignes: byTerm.get(t.id) || [] })) });
   } catch (err) {
-    console.error('[GET /payment-terms]', err);
+    log.error('[GET /payment-terms]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des conditions de paiement.' });
   }
 });
@@ -100,7 +101,7 @@ router.post('/', ...ecriture, async (req, res) => {
   } catch (err) {
     await client.query('ROLLBACK');
     if (err.code === '23505') return res.status(409).json({ error: 'Une condition de paiement porte déjà ce nom.' });
-    console.error('[POST /payment-terms]', err);
+    log.error('[POST /payment-terms]', err);
     return res.status(500).json({ error: 'Erreur lors de la création.' });
   } finally {
     client.release();
@@ -147,7 +148,7 @@ router.put('/:id', ...ecriture, async (req, res) => {
   } catch (err) {
     await client.query('ROLLBACK');
     if (err.code === '23505') return res.status(409).json({ error: 'Une condition de paiement porte déjà ce nom.' });
-    console.error('[PUT /payment-terms/:id]', err);
+    log.error('[PUT /payment-terms/:id]', err);
     return res.status(500).json({ error: 'Erreur lors de la mise à jour.' });
   } finally {
     client.release();
@@ -164,7 +165,7 @@ router.delete('/:id', ...ecriture, async (req, res) => {
     if (result.rowCount === 0) return res.status(404).json({ error: 'Condition de paiement introuvable.' });
     return res.json({ success: true });
   } catch (err) {
-    console.error('[DELETE /payment-terms/:id]', err);
+    log.error('[DELETE /payment-terms/:id]', err);
     return res.status(500).json({ error: 'Erreur lors de la suppression.' });
   }
 });

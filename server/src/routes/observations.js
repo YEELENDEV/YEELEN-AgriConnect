@@ -1,6 +1,7 @@
 import express from "express";
 import { pool } from "../db.js";
 import { authRequired } from "../middleware/auth.js";
+import { log } from "../utils/journal.js";
 
 const router = express.Router();
 
@@ -28,7 +29,7 @@ router.get("/", authRequired, async (req, res) => {
         );
         res.status(200).json({ observations: result.rows });
     } catch (err) {
-        console.error("[GET /observations]", err);
+        log.error("[GET /observations]", err);
         res.status(500).json({ error: "Erreur lors de la récupération des observations." });
     }
 });
@@ -58,7 +59,7 @@ router.post("/", authRequired, async (req, res) => {
         );
         res.status(201).json({ observation: result.rows[0] });
     } catch (err) {
-        console.error("[POST /observations]", err);
+        log.error("[POST /observations]", err);
         res.status(500).json({ error: "Erreur lors de la création de l'observation." });
     }
 });
@@ -91,7 +92,7 @@ router.put("/:id", authRequired, async (req, res) => {
         }
         res.status(200).json({ observation: result.rows[0] });
     } catch (err) {
-        console.error("[PUT /observations/:id]", err);
+        log.error("[PUT /observations/:id]", err);
         res.status(500).json({ error: "Erreur lors de la mise à jour de l'observation." });
     }
 });
@@ -117,7 +118,7 @@ router.delete("/:id", authRequired, async (req, res) => {
         }
         res.status(200).json({ success: true });
     } catch (err) {
-        console.error("[DELETE /observations/:id]", err);
+        log.error("[DELETE /observations/:id]", err);
         res.status(500).json({ error: "Erreur lors de la suppression de l'observation." });
     }
 });

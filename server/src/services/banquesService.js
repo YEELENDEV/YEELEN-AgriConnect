@@ -2,6 +2,7 @@
 // lit aussi directement la table `banques` pour le compte bancaire principal de l'entreprise,
 // sans passer par ce service.
 import { pool } from '../db.js';
+import { log } from '../utils/journal.js';
 
 // Non appelée ailleurs dans le code actuellement (routes/banques.js fait son propre
 // SELECT inline pour la liste) — gardée telle quelle mais son alias `nom_banque AS
@@ -59,7 +60,7 @@ async function deleteBanque(id, entrepriseId) {
     return result.rowCount > 0;
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error('[deleteBanque]', err);
+    log.error('[deleteBanque]', err);
     throw err;
   } finally {
     client.release();

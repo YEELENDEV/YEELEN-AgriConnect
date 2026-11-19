@@ -11,6 +11,7 @@ import { evaluerAcces, invaliderCacheAbonnement } from '../middleware/subscripti
 import { logAuditEvent } from '../utils/auditLog.js';
 import { PRIX_MODULE_USD, PRIX_BUNDLE_USD, calculerPrixUSD } from '../utils/tarificationModules.js';
 import { convertir, DeviseInconnueError } from '../utils/currencyRates.js';
+import { log } from '../utils/journal.js';
 
 const router = express.Router();
 const ecritureAdmin = [authRequired, requirePlatformAdmin];
@@ -24,7 +25,7 @@ async function convertirDepuisUSD(montantUSD, deviseCible) {
     const { montant } = await convertir(montantUSD, 'USD', deviseCible);
     return { montant, devise: deviseCible };
   } catch (err) {
-    if (!(err instanceof DeviseInconnueError)) console.error('[billing] conversion tarif', err);
+    if (!(err instanceof DeviseInconnueError)) log.error('[billing] conversion tarif', err);
     return { montant: montantUSD, devise: 'USD' };
   }
 }
@@ -77,7 +78,7 @@ router.get('/status', authRequired, async (req, res) => {
       mode,
     });
   } catch (err) {
-    console.error('[GET /billing/status]', err);
+    log.error('[GET /billing/status]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération du statut d\'abonnement.' });
   }
 });
@@ -112,7 +113,7 @@ router.get('/tarifs', authRequired, async (req, res) => {
       prixTotal: prixTotalConverti,
     });
   } catch (err) {
-    console.error('[GET /billing/tarifs]', err);
+    log.error('[GET /billing/tarifs]', err);
     return res.status(500).json({ error: 'Erreur lors du calcul des tarifs.' });
   }
 });
@@ -153,7 +154,7 @@ router.get('/entreprises', ...ecritureAdmin, async (req, res) => {
     );
     return res.json({ entreprises: rows, total: totalRes.rows[0].n, page, pageSize });
   } catch (err) {
-    console.error('[GET /billing/entreprises]', err);
+    log.error('[GET /billing/entreprises]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des entreprises.' });
   }
 });
@@ -190,7 +191,7 @@ router.get('/entreprises/:id', ...ecritureAdmin, async (req, res) => {
       prixSuggere: { ...prix, prixTotalUSD: prix.prixTotalUSD, converti: prixSuggereConverti },
     });
   } catch (err) {
-    console.error('[GET /billing/entreprises/:id]', err);
+    log.error('[GET /billing/entreprises/:id]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération de l\'entreprise.' });
   }
 });
@@ -236,7 +237,7 @@ router.post('/entreprises/:id/activer', ...ecritureAdmin, async (req, res) => {
     return res.json({ subscriptionStatus: 'active', activatedUntil: upd.rows[0].activated_until });
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error('[POST /billing/entreprises/:id/activer]', err);
+    log.error('[POST /billing/entreprises/:id/activer]', err);
     return res.status(500).json({ error: "Erreur lors de l'activation." });
   } finally {
     client.release();
@@ -268,7 +269,7 @@ router.post('/entreprises/:id/prolonger', ...ecritureAdmin, async (req, res) => 
     });
     return res.json({ [colonne === 'trial_ends_at' ? 'trialEndsAt' : 'activatedUntil']: upd.rows[0][colonne] });
   } catch (err) {
-    console.error('[POST /billing/entreprises/:id/prolonger]', err);
+    log.error('[POST /billing/entreprises/:id/prolonger]', err);
     return res.status(500).json({ error: 'Erreur lors de la prolongation.' });
   }
 });
@@ -289,7 +290,7 @@ router.post('/entreprises/:id/suspendre', ...ecritureAdmin, async (req, res) => 
     });
     return res.json({ success: true });
   } catch (err) {
-    console.error('[POST /billing/entreprises/:id/suspendre]', err);
+    log.error('[POST /billing/entreprises/:id/suspendre]', err);
     return res.status(500).json({ error: 'Erreur lors de la suspension.' });
   }
 });
@@ -309,7 +310,7 @@ router.post('/entreprises/:id/reactiver', ...ecritureAdmin, async (req, res) => 
     });
     return res.json({ subscriptionStatus: nouveauStatut });
   } catch (err) {
-    console.error('[POST /billing/entreprises/:id/reactiver]', err);
+    log.error('[POST /billing/entreprises/:id/reactiver]', err);
     return res.status(500).json({ error: 'Erreur lors de la réactivation.' });
   }
 });
@@ -330,7 +331,7 @@ router.post('/entreprises/:id/exempter', ...ecritureAdmin, async (req, res) => {
     });
     return res.json({ subscriptionStatus: nouveauStatut });
   } catch (err) {
-    console.error('[POST /billing/entreprises/:id/exempter]', err);
+    log.error('[POST /billing/entreprises/:id/exempter]', err);
     return res.status(500).json({ error: 'Erreur lors de la mise à jour.' });
   }
 });

@@ -3,6 +3,8 @@
 // gestionnaire d'erreurs final. Volontairement sans dépendance externe (pas de helmet ni
 // d'express-rate-limit) : le besoin est simple, et chaque paquet en moins est un risque de
 // chaîne d'approvisionnement en moins.
+import { log } from '../utils/journal.js';
+import { cheminJournalisable } from './contexteRequete.js';
 
 // En-têtes de sécurité pour une API JSON. Les en-têtes propres aux pages HTML (CSP, HSTS…)
 // sont posés par Caddy/nginx devant le frontend — voir Caddyfile et nginx.conf.
@@ -79,6 +81,8 @@ export function gestionnaireErreurs(err, req, res, next) {
   if (err?.message === 'CORS_ORIGINE_REFUSEE') {
     return res.status(403).json({ error: 'Origine non autorisée.' });
   }
-  console.error(`[erreur] ${req.method} ${req.originalUrl}`, err);
+  // Chemin sans query string et jetons masqués ; le journal ajoute l'identifiant de requête,
+  // repris dans la réponse (requestId) par middleware/contexteRequete.js.
+  log.error(`Erreur non gérée sur ${req.method} ${cheminJournalisable(req)}`, err);
   return res.status(500).json({ error: 'Erreur interne du serveur.' });
 }

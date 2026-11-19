@@ -5,6 +5,7 @@ import { syncFinanceEntry, removeFinanceEntry, updateFinanceEntry } from '../uti
 import { logMouvementHistorique, getMouvementHistorique, getAllMouvementHistorique } from '../utils/mouvementHistorique.js';
 import { supprimerPolygone } from '../utils/agroPolygon.js';
 import { analyserContour, ContourInvalideError } from '../utils/geoParcelle.js';
+import { log } from '../utils/journal.js';
 
 const router = express.Router();
 
@@ -46,7 +47,7 @@ router.get('/parcelles', authRequired, async (req, res) => {
     );
     return res.json({ parcelles: result.rows });
   } catch (err) {
-    console.error('[GET /parcelles]', err);
+    log.error('[GET /parcelles]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des parcelles.' });
   }
 });
@@ -72,7 +73,7 @@ router.post('/parcelles', authRequired, async (req, res) => {
     return res.status(201).json({ parcelle: result.rows[0] });
   } catch (err) {
     if (err instanceof ContourInvalideError) return res.status(400).json({ error: err.message });
-    console.error('[POST /parcelles]', err);
+    log.error('[POST /parcelles]', err);
     return res.status(500).json({ error: 'Erreur lors de la création de la parcelle.' });
   }
 });
@@ -135,7 +136,7 @@ router.put('/parcelles/:id', authRequired, async (req, res) => {
     return res.json({ parcelle: result.rows[0] });
   } catch (err) {
     if (err instanceof ContourInvalideError) return res.status(400).json({ error: err.message });
-    console.error('[PUT /parcelles]', err);
+    log.error('[PUT /parcelles]', err);
     return res.status(500).json({ error: 'Erreur lors de la mise à jour de la parcelle.' });
   }
 });
@@ -147,7 +148,7 @@ router.delete('/parcelles/:id', authRequired, async (req, res) => {
     if (result.rowCount === 0) return res.status(404).json({ error: 'Parcelle introuvable.' });
     return res.json({ success: true });
   } catch (err) {
-    console.error('[DELETE /parcelles]', err);
+    log.error('[DELETE /parcelles]', err);
     return res.status(500).json({ error: 'Erreur lors de la suppression.' });
   }
 });
@@ -168,7 +169,7 @@ router.get('/historique', authRequired, async (req, res) => {
     );
     return res.json({ historique: result.rows });
   } catch (err) {
-    console.error('[GET /historique]', err);
+    log.error('[GET /historique]', err);
     return res.status(500).json({ error: "Erreur lors de la récupération de l'historique." });
   }
 });
@@ -193,7 +194,7 @@ router.post('/historique', authRequired, async (req, res) => {
     );
     return res.status(201).json({ entry: result.rows[0] });
   } catch (err) {
-    console.error('[POST /historique]', err);
+    log.error('[POST /historique]', err);
     return res.status(500).json({ error: "Erreur lors de l'enregistrement de l'historique." });
   }
 });
@@ -210,7 +211,7 @@ router.get('/mouvements', authRequired, async (req, res) => {
       : await pool.query(`SELECT ${MOUVEMENT_COLUMNS} FROM cultures_mouvements WHERE entreprise_id = $1 ORDER BY date DESC, created_at DESC`, [req.user.entrepriseId]);
     return res.json({ mouvements: result.rows });
   } catch (err) {
-    console.error('[GET /mouvements]', err);
+    log.error('[GET /mouvements]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des mouvements.' });
   }
 });
@@ -241,7 +242,7 @@ router.post('/mouvements', authRequired, async (req, res) => {
 
     return res.status(201).json({ mouvement: result.rows[0] });
   } catch (err) {
-    console.error('[POST /mouvements]', err);
+    log.error('[POST /mouvements]', err);
     return res.status(500).json({ error: "Erreur lors de l'enregistrement du mouvement." });
   }
 });
@@ -293,7 +294,7 @@ router.put('/mouvements/:id', authRequired, async (req, res) => {
 
     return res.json({ mouvement: updated });
   } catch (err) {
-    console.error('[PUT /mouvements]', err);
+    log.error('[PUT /mouvements]', err);
     return res.status(500).json({ error: 'Erreur lors de la mise à jour du mouvement.' });
   }
 });
@@ -323,7 +324,7 @@ router.delete('/mouvements/:id', authRequired, async (req, res) => {
 
     return res.json({ success: true });
   } catch (err) {
-    console.error('[DELETE /mouvements]', err);
+    log.error('[DELETE /mouvements]', err);
     return res.status(500).json({ error: 'Erreur lors de la suppression.' });
   }
 });
@@ -333,7 +334,7 @@ router.get('/mouvements/:id/historique', authRequired, async (req, res) => {
     const historique = await getMouvementHistorique(req.user.entrepriseId, 'Cultures', req.params.id);
     return res.json({ historique });
   } catch (err) {
-    console.error('[GET /mouvements/historique]', err);
+    log.error('[GET /mouvements/historique]', err);
     return res.status(500).json({ error: "Erreur lors de la récupération de l'historique." });
   }
 });
@@ -343,7 +344,7 @@ router.get('/historique-mouvements', authRequired, async (req, res) => {
     const historique = await getAllMouvementHistorique(req.user.entrepriseId, 'Cultures');
     return res.json({ historique });
   } catch (err) {
-    console.error('[GET /cultures/historique-mouvements]', err);
+    log.error('[GET /cultures/historique-mouvements]', err);
     return res.status(500).json({ error: "Erreur lors de la récupération de l'historique." });
   }
 });

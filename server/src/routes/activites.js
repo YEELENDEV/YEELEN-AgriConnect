@@ -4,6 +4,7 @@
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';
 import { pool } from '../db.js';
+import { log } from '../utils/journal.js';
 
 const router = express.Router();
 
@@ -35,7 +36,7 @@ router.get('/', authRequired, async (req, res) => {
     );
     return res.json({ activites: result.rows });
   } catch (err) {
-    console.error('[GET /activites]', err);
+    log.error('[GET /activites]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des activités.' });
   }
 });
@@ -56,7 +57,7 @@ router.post('/', authRequired, async (req, res) => {
     );
     return res.status(201).json({ activite: { ...result.rows[0], userEmail: req.user.email } });
   } catch (err) {
-    console.error('[POST /activites]', err);
+    log.error('[POST /activites]', err);
     return res.status(500).json({ error: "Erreur lors de la création de l'activité." });
   }
 });
@@ -75,7 +76,7 @@ router.patch('/:id', authRequired, async (req, res) => {
     if (result.rows.length === 0) return res.status(404).json({ error: 'Activité introuvable.' });
     return res.json({ activite: result.rows[0] });
   } catch (err) {
-    console.error('[PATCH /activites/:id]', err);
+    log.error('[PATCH /activites/:id]', err);
     return res.status(500).json({ error: "Erreur lors de la mise à jour de l'activité." });
   }
 });
@@ -89,7 +90,7 @@ router.delete('/:id', authRequired, async (req, res) => {
     if (result.rows.length === 0) return res.status(404).json({ error: 'Activité introuvable.' });
     return res.json({ success: true });
   } catch (err) {
-    console.error('[DELETE /activites/:id]', err);
+    log.error('[DELETE /activites/:id]', err);
     return res.status(500).json({ error: "Erreur lors de la suppression de l'activité." });
   }
 });

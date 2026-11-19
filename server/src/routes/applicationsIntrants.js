@@ -6,6 +6,7 @@ import express from 'express';
 import { authRequired } from '../middleware/auth.js';
 import { pool } from '../db.js';
 import { consommerProduit, restituerProduit } from '../utils/stockSync.js';
+import { log } from '../utils/journal.js';
 
 const router = express.Router();
 
@@ -37,7 +38,7 @@ router.get('/', authRequired, async (req, res) => {
     );
     return res.json({ applications: rows });
   } catch (err) {
-    console.error('[GET /applications-intrants]', err);
+    log.error('[GET /applications-intrants]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération du registre.' });
   }
 });
@@ -111,7 +112,7 @@ router.post('/', authRequired, async (req, res) => {
     return res.status(201).json({ application: rows[0] });
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error('[POST /applications-intrants]', err);
+    log.error('[POST /applications-intrants]', err);
     return res.status(500).json({ error: "Erreur lors de l'enregistrement de l'application." });
   } finally {
     client.release();
@@ -150,7 +151,7 @@ router.put('/:id', authRequired, async (req, res) => {
     const { rows } = await pool.query(`SELECT ${APP_COLUMNS} ${joined} WHERE a.id = $1`, [req.params.id]);
     return res.json({ application: rows[0] });
   } catch (err) {
-    console.error('[PUT /applications-intrants/:id]', err);
+    log.error('[PUT /applications-intrants/:id]', err);
     return res.status(500).json({ error: 'Erreur lors de la mise à jour.' });
   }
 });
@@ -173,7 +174,7 @@ router.delete('/:id', authRequired, async (req, res) => {
     }
     return res.json({ success: true });
   } catch (err) {
-    console.error('[DELETE /applications-intrants/:id]', err);
+    log.error('[DELETE /applications-intrants/:id]', err);
     return res.status(500).json({ error: 'Erreur lors de la suppression.' });
   }
 });

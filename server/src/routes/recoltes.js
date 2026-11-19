@@ -6,6 +6,7 @@
 import express from "express";
 import { pool } from "../db.js";
 import { authRequired } from "../middleware/auth.js";
+import { log } from "../utils/journal.js";
 
 const router = express.Router();
 
@@ -27,7 +28,7 @@ router.get("/", authRequired, async (req, res) => {
         );
         res.status(200).json({ recoltes: result.rows });
     } catch (err) {
-        console.error("[GET /recoltes]", err);
+        log.error("[GET /recoltes]", err);
         res.status(500).json({ error: "Erreur lors de la récupération des récoltes." });
     }
 });
@@ -66,7 +67,7 @@ router.post("/", authRequired, async (req, res) => {
         );
         res.status(201).json({ recolte: result.rows[0] });
     } catch (err) {
-        console.error("[POST /recoltes]", err);
+        log.error("[POST /recoltes]", err);
         res.status(500).json({ error: "Erreur lors de l'enregistrement de la récolte." });
     }
 });
@@ -108,7 +109,7 @@ router.put("/:id", authRequired, async (req, res) => {
         }
         res.status(200).json({ recolte: result.rows[0] });
     } catch (err) {
-        console.error("[PUT /recoltes/:id]", err);
+        log.error("[PUT /recoltes/:id]", err);
         res.status(500).json({ error: "Erreur lors de la mise à jour de la récolte." });
     }
 });
@@ -129,7 +130,7 @@ router.delete("/:id", authRequired, async (req, res) => {
         }
         res.status(200).json({ success: true });
     } catch (err) {
-        console.error("[DELETE /recoltes/:id]", err);
+        log.error("[DELETE /recoltes/:id]", err);
         res.status(500).json({ error: "Erreur lors de la suppression de la récolte." });
     }
 });

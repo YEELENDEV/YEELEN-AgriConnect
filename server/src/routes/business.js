@@ -1,6 +1,7 @@
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';
 import { pool } from '../db.js';
+import { log } from '../utils/journal.js';
 
 const router = express.Router();
 
@@ -26,7 +27,7 @@ router.get('/finances', authRequired, async (req, res) => {
     );
     return res.json({ finances: result.rows });
   } catch (err) {
-    console.error('[GET /finances]', err);
+    log.error('[GET /finances]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des finances.' });
   }
 });
@@ -53,7 +54,7 @@ router.post('/finances', authRequired, async (req, res) => {
     );
     return res.status(201).json({ entry: result.rows[0] });
   } catch (err) {
-    console.error('[POST /finances]', err);
+    log.error('[POST /finances]', err);
     return res.status(500).json({ error: "Erreur lors de l'enregistrement de la transaction." });
   }
 });
@@ -66,7 +67,7 @@ router.delete('/finances/:id', authRequired, async (req, res) => {
     if (result.rowCount === 0) return res.status(404).json({ error: 'Écriture financière introuvable.' });
     return res.json({ success: true });
   } catch (err) {
-    console.error('[DELETE /finances]', err);
+    log.error('[DELETE /finances]', err);
     return res.status(500).json({ error: 'Erreur lors de la suppression.' });
   }
 });

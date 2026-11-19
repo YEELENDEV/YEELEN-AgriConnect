@@ -5,6 +5,7 @@
 // countRecentAuditEvents (une panne d'infra secondaire ne doit jamais bloquer une action
 // principale).
 import { DELAI_API_EXTERNE_MS } from '../config/env.js';
+import { log } from './journal.js';
 
 const SITEVERIFY_URL = 'https://www.google.com/recaptcha/api/siteverify';
 const SEUIL_SCORE = 0.5;
@@ -25,7 +26,7 @@ export async function verifierRecaptcha(token, actionAttendue = 'register') {
     const ok = Boolean(data.success) && data.action === actionAttendue && (data.score ?? 0) >= SEUIL_SCORE;
     return { ok, skipped: false, score: data.score };
   } catch (err) {
-    console.error('[recaptcha] siteverify indisponible, repli gracieux :', err.message);
+    log.error('[recaptcha] siteverify indisponible, repli gracieux :', err.message);
     return { ok: true, skipped: true, erreur: true };
   }
 }

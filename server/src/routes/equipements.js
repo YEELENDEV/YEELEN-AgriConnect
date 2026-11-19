@@ -5,6 +5,7 @@
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';
 import { pool } from '../db.js';
+import { log } from '../utils/journal.js';
 
 const router = express.Router();
 
@@ -40,7 +41,7 @@ router.get('/', authRequired, async (req, res) => {
     );
     return res.json({ equipements: result.rows });
   } catch (err) {
-    console.error('[GET /equipements]', err);
+    log.error('[GET /equipements]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des équipements.' });
   }
 });
@@ -58,7 +59,7 @@ router.post('/', authRequired, async (req, res) => {
     );
     return res.status(201).json({ equipement: result.rows[0] });
   } catch (err) {
-    console.error('[POST /equipements]', err);
+    log.error('[POST /equipements]', err);
     return res.status(500).json({ error: 'Erreur lors de la création de l’équipement.' });
   }
 });
@@ -88,7 +89,7 @@ router.put('/:id', authRequired, async (req, res) => {
     }
     return res.json({ equipement: result.rows[0] });
   } catch (err) {
-    console.error('[PUT /equipements]', err);
+    log.error('[PUT /equipements]', err);
     return res.status(500).json({ error: 'Erreur lors de la mise à jour de l’équipement.' });
   }
 });
@@ -102,7 +103,7 @@ router.delete('/:id', authRequired, async (req, res) => {
     await pool.query('DELETE FROM equipements WHERE id = $1 AND entreprise_id = $2', [req.params.id, req.user.entrepriseId]);
     return res.json({ success: true });
   } catch (err) {
-    console.error('[DELETE /equipements]', err);
+    log.error('[DELETE /equipements]', err);
     return res.status(500).json({ error: 'Erreur lors de la suppression de l’équipement.' });
   }
 });
@@ -121,7 +122,7 @@ router.get('/:id/maintenance', authRequired, async (req, res) => {
     );
     return res.json({ maintenance: result.rows });
   } catch (err) {
-    console.error('[GET /equipements/:id/maintenance]', err);
+    log.error('[GET /equipements/:id/maintenance]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération de l’historique de maintenance.' });
   }
 });
@@ -143,7 +144,7 @@ router.post('/:id/maintenance', authRequired, async (req, res) => {
     );
     return res.status(201).json({ maintenance: result.rows[0] });
   } catch (err) {
-    console.error('[POST /equipements/:id/maintenance]', err);
+    log.error('[POST /equipements/:id/maintenance]', err);
     return res.status(500).json({ error: 'Erreur lors de l’ajout de l’intervention.' });
   }
 });
@@ -165,7 +166,7 @@ router.delete('/maintenance/:maintenanceId', authRequired, async (req, res) => {
     }
     return res.json({ success: true });
   } catch (err) {
-    console.error('[DELETE /equipements/maintenance/:id]', err);
+    log.error('[DELETE /equipements/maintenance/:id]', err);
     return res.status(500).json({ error: 'Erreur lors de la suppression de l’intervention.' });
   }
 });

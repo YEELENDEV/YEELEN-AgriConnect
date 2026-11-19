@@ -3,6 +3,7 @@ import { authRequired } from '../middleware/auth.js';
 import { pool } from '../db.js';
 import { syncAchatDocumentFinance, removeFinanceEntry } from '../utils/financeSync.js';
 import { applyAchatLignesToStock, reverseAchatLignesFromStock } from '../utils/stockSync.js';
+import { log } from '../utils/journal.js';
 
 const router = express.Router();
 
@@ -128,7 +129,7 @@ router.get('/', authRequired, async (req, res) => {
     );
     return res.json({ documents: result.rows });
   } catch (err) {
-    console.error('[GET /achats]', err);
+    log.error('[GET /achats]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des achats.' });
   }
 });
@@ -157,7 +158,7 @@ router.get('/ledger', authRequired, async (req, res) => {
     );
     return res.json({ mouvements: result.rows });
   } catch (err) {
-    console.error('[GET /achats/ledger]', err);
+    log.error('[GET /achats/ledger]', err);
     return res.status(500).json({ error: "Erreur lors de la récupération de l'historique des achats." });
   }
 });
@@ -168,7 +169,7 @@ router.get('/:id', authRequired, async (req, res) => {
     if (!document) return res.status(404).json({ error: 'Document d\'achat introuvable.' });
     return res.json({ document });
   } catch (err) {
-    console.error('[GET /achats/:id]', err);
+    log.error('[GET /achats/:id]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération du document.' });
   }
 });
@@ -223,7 +224,7 @@ router.post('/', authRequired, async (req, res) => {
     return res.status(201).json({ document });
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error('[POST /achats]', err);
+    log.error('[POST /achats]', err);
     return res.status(500).json({ error: 'Erreur lors de l\'enregistrement de l\'achat.' });
   } finally {
     client.release();
@@ -289,7 +290,7 @@ router.put('/:id', authRequired, async (req, res) => {
     return res.json({ document });
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error('[PUT /achats/:id]', err);
+    log.error('[PUT /achats/:id]', err);
     return res.status(500).json({ error: 'Erreur lors de la mise à jour du document.' });
   } finally {
     client.release();
@@ -313,7 +314,7 @@ router.delete('/:id', authRequired, async (req, res) => {
     await pool.query('DELETE FROM achats_documents WHERE id = $1 AND entreprise_id = $2', [req.params.id, req.user.entrepriseId]);
     return res.json({ success: true });
   } catch (err) {
-    console.error('[DELETE /achats/:id]', err);
+    log.error('[DELETE /achats/:id]', err);
     return res.status(500).json({ error: 'Erreur lors de la suppression du document.' });
   }
 });
@@ -341,7 +342,7 @@ router.post('/:id/envoyer', authRequired, async (req, res) => {
     const document = await getDocumentComplete(req.params.id, req.user.entrepriseId);
     return res.json({ document });
   } catch (err) {
-    console.error('[POST /achats/:id/envoyer]', err);
+    log.error('[POST /achats/:id/envoyer]', err);
     return res.status(500).json({ error: 'Erreur lors de l\'envoi au fournisseur.' });
   }
 });
@@ -357,7 +358,7 @@ router.post('/:id/commander', authRequired, async (req, res) => {
     const document = await getDocumentComplete(req.params.id, req.user.entrepriseId);
     return res.json({ document });
   } catch (err) {
-    console.error('[POST /achats/:id/commander]', err);
+    log.error('[POST /achats/:id/commander]', err);
     return res.status(500).json({ error: 'Erreur lors du passage en commande.' });
   }
 });
@@ -381,7 +382,7 @@ router.post('/:id/annuler', authRequired, async (req, res) => {
     const document = await getDocumentComplete(req.params.id, req.user.entrepriseId);
     return res.json({ document });
   } catch (err) {
-    console.error('[POST /achats/:id/annuler]', err);
+    log.error('[POST /achats/:id/annuler]', err);
     return res.status(500).json({ error: 'Erreur lors de l\'annulation.' });
   }
 });
@@ -397,7 +398,7 @@ router.post('/:id/remettre-brouillon', authRequired, async (req, res) => {
     const document = await getDocumentComplete(req.params.id, req.user.entrepriseId);
     return res.json({ document });
   } catch (err) {
-    console.error('[POST /achats/:id/remettre-brouillon]', err);
+    log.error('[POST /achats/:id/remettre-brouillon]', err);
     return res.status(500).json({ error: 'Erreur lors du retour en brouillon.' });
   }
 });
@@ -428,7 +429,7 @@ router.post('/:id/reception-partielle', authRequired, async (req, res) => {
     const document = await getDocumentComplete(req.params.id, req.user.entrepriseId);
     return res.json({ document });
   } catch (err) {
-    console.error('[POST /achats/:id/reception-partielle]', err);
+    log.error('[POST /achats/:id/reception-partielle]', err);
     return res.status(500).json({ error: 'Erreur lors de la réception partielle.' });
   }
 });
@@ -463,7 +464,7 @@ router.post('/:id/recevoir', authRequired, async (req, res) => {
     const document = await getDocumentComplete(req.params.id, req.user.entrepriseId);
     return res.json({ document });
   } catch (err) {
-    console.error('[POST /achats/:id/recevoir]', err);
+    log.error('[POST /achats/:id/recevoir]', err);
     return res.status(500).json({ error: 'Erreur lors de la réception.' });
   }
 });
@@ -493,7 +494,7 @@ router.post('/:id/annuler-reception', authRequired, async (req, res) => {
     const document = await getDocumentComplete(req.params.id, req.user.entrepriseId);
     return res.json({ document });
   } catch (err) {
-    console.error('[POST /achats/:id/annuler-reception]', err);
+    log.error('[POST /achats/:id/annuler-reception]', err);
     return res.status(500).json({ error: "Erreur lors de l'annulation de la réception." });
   }
 });

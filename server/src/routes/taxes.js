@@ -6,6 +6,7 @@
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';
 import { pool } from '../db.js';
+import { log } from '../utils/journal.js';
 
 const router = express.Router();
 
@@ -63,7 +64,7 @@ router.get('/', authRequired, async (req, res) => {
     );
     return res.json({ taxes: rows });
   } catch (err) {
-    console.error('[GET /taxes]', err);
+    log.error('[GET /taxes]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des taxes.' });
   }
 });
@@ -85,7 +86,7 @@ router.post('/', ...ecriture, async (req, res) => {
     return res.status(201).json({ tax: rows[0] });
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ error: 'Une taxe porte déjà ce nom.' });
-    console.error('[POST /taxes]', err);
+    log.error('[POST /taxes]', err);
     return res.status(500).json({ error: 'Erreur lors de la création de la taxe.' });
   }
 });
@@ -116,7 +117,7 @@ router.put('/:id', ...ecriture, async (req, res) => {
     return res.json({ tax: rows[0] });
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ error: 'Une taxe porte déjà ce nom.' });
-    console.error('[PUT /taxes/:id]', err);
+    log.error('[PUT /taxes/:id]', err);
     return res.status(500).json({ error: 'Erreur lors de la mise à jour de la taxe.' });
   }
 });
@@ -131,7 +132,7 @@ router.delete('/:id', ...ecriture, async (req, res) => {
     if (result.rowCount === 0) return res.status(404).json({ error: 'Taxe introuvable.' });
     return res.json({ success: true });
   } catch (err) {
-    console.error('[DELETE /taxes/:id]', err);
+    log.error('[DELETE /taxes/:id]', err);
     return res.status(500).json({ error: 'Erreur lors de la suppression de la taxe.' });
   }
 });

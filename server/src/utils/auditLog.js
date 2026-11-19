@@ -5,6 +5,7 @@
 // `entrepriseId`/`userId` sont nullable exprès : une tentative de connexion avec un
 // email inconnu n'a ni l'un ni l'autre.
 import { pool } from '../db.js';
+import { log } from './journal.js';
 
 // IP du client telle que résolue par Express selon le réglage `trust proxy` (app.js) : seul
 // un proxy de confiance (Caddy, réseau privé) peut fournir X-Forwarded-For. Lire cet en-tête
@@ -33,7 +34,7 @@ export async function logAuditEvent({ entrepriseId = null, userId = null, email 
       [entrepriseId, userId, email, action, ipAddress, userAgent, details ? JSON.stringify(details) : null]
     );
   } catch (err) {
-    console.error('[logAuditEvent]', err);
+    log.error('[logAuditEvent]', err);
   }
 }
 
@@ -52,7 +53,7 @@ export async function countRecentAuditEvents(email, actions, sinceMinutes = 60) 
     );
     return result.rows[0]?.n ?? 0;
   } catch (err) {
-    console.error('[countRecentAuditEvents]', err);
+    log.error('[countRecentAuditEvents]', err);
     return 0;
   }
 }
@@ -73,7 +74,7 @@ export async function countRecentAuditEventsByIp(ipAddress, actions, sinceMinute
     );
     return result.rows[0]?.n ?? 0;
   } catch (err) {
-    console.error('[countRecentAuditEventsByIp]', err);
+    log.error('[countRecentAuditEventsByIp]', err);
     return 0;
   }
 }

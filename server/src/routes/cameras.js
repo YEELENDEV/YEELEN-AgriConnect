@@ -11,6 +11,7 @@ import crypto from 'crypto';
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';
 import { pool } from '../db.js';
+import { log } from '../utils/journal.js';
 
 const router = express.Router();
 
@@ -63,7 +64,7 @@ router.get('/', authRequired, async (req, res) => {
     );
     return res.json({ cameras: rows });
   } catch (err) {
-    console.error('[GET /cameras]', err);
+    log.error('[GET /cameras]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des caméras.' });
   }
 });
@@ -88,7 +89,7 @@ router.post('/', authRequired, async (req, res) => {
     );
     return res.status(201).json({ camera: rows[0] });
   } catch (err) {
-    console.error('[POST /cameras]', err);
+    log.error('[POST /cameras]', err);
     return res.status(500).json({ error: 'Erreur lors de la création de la caméra.' });
   }
 });
@@ -117,7 +118,7 @@ router.put('/:id', authRequired, async (req, res) => {
     if (rows.length === 0) return res.status(404).json({ error: 'Caméra introuvable.' });
     return res.json({ camera: rows[0] });
   } catch (err) {
-    console.error('[PUT /cameras/:id]', err);
+    log.error('[PUT /cameras/:id]', err);
     return res.status(500).json({ error: 'Erreur lors de la mise à jour de la caméra.' });
   }
 });
@@ -131,7 +132,7 @@ router.delete('/:id', authRequired, async (req, res) => {
     if (rowCount === 0) return res.status(404).json({ error: 'Caméra introuvable.' });
     return res.json({ success: true });
   } catch (err) {
-    console.error('[DELETE /cameras/:id]', err);
+    log.error('[DELETE /cameras/:id]', err);
     return res.status(500).json({ error: 'Erreur lors de la suppression de la caméra.' });
   }
 });
@@ -199,7 +200,7 @@ async function enregistrerAlerte(req, res) {
     );
     return res.status(201).json({ enregistree: true });
   } catch (err) {
-    console.error('[alerte caméra]', err);
+    log.error('[alerte caméra]', err);
     return res.status(500).json({ error: 'Erreur lors de l’enregistrement de l’alerte.' });
   }
 }
@@ -222,7 +223,7 @@ router.get('/alertes', authRequired, async (req, res) => {
     );
     return res.json({ alertes: rows });
   } catch (err) {
-    console.error('[GET /cameras/alertes]', err);
+    log.error('[GET /cameras/alertes]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des alertes.' });
   }
 });
@@ -236,7 +237,7 @@ router.post('/alertes/:id/vue', authRequired, async (req, res) => {
     if (rowCount === 0) return res.status(404).json({ error: 'Alerte introuvable.' });
     return res.json({ success: true });
   } catch (err) {
-    console.error('[POST /cameras/alertes/:id/vue]', err);
+    log.error('[POST /cameras/alertes/:id/vue]', err);
     return res.status(500).json({ error: 'Erreur lors de la mise à jour de l’alerte.' });
   }
 });
@@ -252,7 +253,7 @@ router.post('/:id/regenerer-token', authRequired, async (req, res) => {
     if (rows.length === 0) return res.status(404).json({ error: 'Caméra introuvable.' });
     return res.json({ camera: rows[0] });
   } catch (err) {
-    console.error('[POST /cameras/:id/regenerer-token]', err);
+    log.error('[POST /cameras/:id/regenerer-token]', err);
     return res.status(500).json({ error: 'Erreur lors de la régénération du token.' });
   }
 });

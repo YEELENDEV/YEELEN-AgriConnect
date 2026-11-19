@@ -14,6 +14,7 @@ import express from 'express';
 import { authRequired } from '../middleware/auth.js';
 import { pool } from '../db.js';
 import { resoudreRegleListe, appliquerRegleListe } from '../utils/pricelistResolver.js';
+import { log } from '../utils/journal.js';
 
 const router = express.Router();
 
@@ -32,7 +33,7 @@ router.get('/', authRequired, async (req, res) => {
     );
     return res.json({ listes: result.rows });
   } catch (err) {
-    console.error('[GET /listes-prix]', err);
+    log.error('[GET /listes-prix]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des listes de prix.' });
   }
 });
@@ -53,7 +54,7 @@ router.post('/', authRequired, async (req, res) => {
     if (err.code === '23505') {
       return res.status(409).json({ error: 'Une liste avec ce nom existe déjà.' });
     }
-    console.error('[POST /listes-prix]', err);
+    log.error('[POST /listes-prix]', err);
     return res.status(500).json({ error: 'Erreur lors de la création de la liste.' });
   }
 });
@@ -94,7 +95,7 @@ router.get('/prix-effectif', authRequired, async (req, res) => {
 
     return res.json({ prix: appliquerRegleListe(regle, prixDefaut), source: regle ? 'liste' : 'defaut', regleId: regle ? regle.id : null });
   } catch (err) {
-    console.error('[GET /listes-prix/prix-effectif]', err);
+    log.error('[GET /listes-prix/prix-effectif]', err);
     return res.status(500).json({ error: 'Erreur lors de la résolution du prix.' });
   }
 });
@@ -108,7 +109,7 @@ router.delete('/:id', authRequired, async (req, res) => {
     if (result.rowCount === 0) return res.status(404).json({ error: 'Liste introuvable.' });
     return res.json({ success: true });
   } catch (err) {
-    console.error('[DELETE /listes-prix]', err);
+    log.error('[DELETE /listes-prix]', err);
     return res.status(500).json({ error: 'Erreur lors de la suppression.' });
   }
 });
@@ -137,7 +138,7 @@ router.get('/:id/lignes', authRequired, async (req, res) => {
     );
     return res.json({ lignes: result.rows });
   } catch (err) {
-    console.error('[GET /listes-prix/:id/lignes]', err);
+    log.error('[GET /listes-prix/:id/lignes]', err);
     return res.status(500).json({ error: 'Erreur lors de la récupération des lignes.' });
   }
 });
@@ -211,7 +212,7 @@ router.post('/:id/lignes', authRequired, async (req, res) => {
     );
     return res.status(201).json({ ligne: created.rows[0] });
   } catch (err) {
-    console.error('[POST /listes-prix/:id/lignes]', err);
+    log.error('[POST /listes-prix/:id/lignes]', err);
     return res.status(500).json({ error: "Erreur lors de l'enregistrement de la ligne." });
   }
 });
@@ -230,7 +231,7 @@ router.delete('/lignes/:ligneId', authRequired, async (req, res) => {
     if (result.rowCount === 0) return res.status(404).json({ error: 'Ligne introuvable.' });
     return res.json({ success: true });
   } catch (err) {
-    console.error('[DELETE /listes-prix/lignes/:id]', err);
+    log.error('[DELETE /listes-prix/lignes/:id]', err);
     return res.status(500).json({ error: 'Erreur lors de la suppression de la ligne.' });
   }
 });
