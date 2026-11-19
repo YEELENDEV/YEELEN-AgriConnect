@@ -1,6 +1,6 @@
 // Attributs de produit réutilisables (product.attribute / product.attribute.value) — étape 2
 // de l'alignement Odoo produit/stock. Scopés par entreprise seulement, pas par module (voir
-// migrate.js) : ouvert à tout rôle authentifié, comme produits/produit_categories — le domaine
+// socle.js) : ouvert à tout rôle authentifié, comme produits/produit_categories — le domaine
 // "catalogue" n'est pas gated admin/directeur dans ce projet, contrairement au domaine comptable.
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';

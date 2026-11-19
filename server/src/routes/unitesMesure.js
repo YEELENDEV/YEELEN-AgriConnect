@@ -1,4 +1,4 @@
-// Unités de mesure — calqué sur uom.uom d'un ERP de référence. Voir server/src/db/migrate.js
+// Unités de mesure — calqué sur uom.uom d'un ERP de référence. Voir server/src/db/socle.js
 // pour la convention de « facteur » (combien d'unités de référence de sa catégorie pour 1
 // unité de cette ligne) utilisée par la conversion dans server/src/utils/stockSync.js.
 // Écritures réservées admin/directeur (même posture que /api/taxes, /api/accounts).

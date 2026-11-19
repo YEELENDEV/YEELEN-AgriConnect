@@ -1,5 +1,5 @@
 // Catégories d'unités de mesure — calqué sur uom.category d'un ERP de référence. Référentiel
-// propre à l'entreprise (voir server/src/db/migrate.js pour la justification du scoping par
+// propre à l'entreprise (voir server/src/db/socle.js pour la justification du scoping par
 // entreprise, contrairement à Odoo où uom.category est une donnée globale partagée). Écritures
 // réservées admin/directeur (même posture que /api/taxes, /api/accounts).
 import express from 'express';

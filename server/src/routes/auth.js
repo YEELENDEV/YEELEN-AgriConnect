@@ -29,7 +29,7 @@ const router = express.Router();
 const ECHECS_MDP_MAX = 10;
 const FENETRE_ECHECS_MDP_MIN = 15;
 
-// Référentiels amorcés pour toute nouvelle entreprise : listes partagées avec migrate.js via
+// Référentiels amorcés pour toute nouvelle entreprise : listes partagées avec socle.js via
 // utils/referentielsDefaut.js. Sans les catégories de produits, une entreprise inscrite ne
 // pourrait ajouter aucun article de stock tant qu'un admin n'en crée pas une à la main.
 // ─── POST /api/auth/register ───────────────────────────────────────────────
@@ -165,7 +165,7 @@ router.post('/register', async (req, res) => {
     }
 
     // Étape 2 Comptabilité : plan de comptes + journaux par défaut (mêmes listes que
-    // migrate.js:seedComptaConfigForExistingEntreprises, via utils/comptaDefauts.js).
+    // socle.js:seedComptaConfigForExistingEntreprises, via utils/comptaDefauts.js).
     const compteIdParCode = {};
     for (const c of COMPTES_DEFAUT) {
       const acc = await client.query(
@@ -187,7 +187,7 @@ router.post('/register', async (req, res) => {
     }
 
     // Étape 1 alignement Odoo produit/stock : catégories d'unités de mesure + unités par
-    // défaut (mêmes listes que migrate.js:seedUnitesMesureForExistingEntreprises, via
+    // défaut (mêmes listes que socle.js:seedUnitesMesureForExistingEntreprises, via
     // utils/unitesMesureDefaut.js).
     for (const cat of UNITES_MESURE_DEFAUT) {
       const catRes = await client.query(
@@ -206,7 +206,7 @@ router.post('/register', async (req, res) => {
     }
 
     // Emplacements de stock par défaut (étape 3 alignement Odoo produit/stock — mêmes
-    // emplacements que migrate.js:seedEmplacementsStockForExistingEntreprises, via
+    // emplacements que socle.js:seedEmplacementsStockForExistingEntreprises, via
     // utils/emplacementsStockDefaut.js).
     for (const e of EMPLACEMENTS_STOCK_DEFAUT) {
       await client.query(

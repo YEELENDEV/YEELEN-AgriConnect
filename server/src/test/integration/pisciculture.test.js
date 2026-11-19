@@ -66,7 +66,7 @@ describe('Pisciculture — isolation multi-tenant', () => {
 });
 
 // Régression sur les whitelists 'module' étendues (produits.js, achats.js, stockSync.js,
-// migrate.js CHECK) — confirme que Pisciculture est acceptée de bout en bout, catégories
+// socle.js CHECK) — confirme que Pisciculture est acceptée de bout en bout, catégories
 // seedées à l'inscription incluses, et que le stock est réellement synchronisé (pas
 // silencieusement ignoré, comme stockSync.js le ferait pour un module non reconnu).
 describe('Pisciculture — catalogue produits (stock unifié) + synchro achats', () => {

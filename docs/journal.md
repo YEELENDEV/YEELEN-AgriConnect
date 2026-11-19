@@ -5,6 +5,30 @@ Extrait de `CLAUDE.md` le 2026-08-28 pour alléger le contexte chargé à chaque
 
 ---
 
+### Lot 3a de l'audit : migrations versionnées — 2026-11-19
+
+Premier sous-lot du lot 3 (socle technique, A2). Avant : un script `migrate.js` de 3 563 lignes
+rejoué en entier à chaque déploiement, sans trace de ce qui avait été appliqué ; un écart entre
+une base et le script ne se voyait qu'en cassant une installation neuve.
+
+- **Socle figé** : l'ancien script devient `server/src/db/socle.js` (contenu inchangé, seules la
+  connexion et la fonction finale sont remplacées par `export appliquerSocle(client)`), version
+  `0000`, appliquée une fois par base.
+- **Migrations numérotées** : `server/src/db/migrations/NNNN_nom.sql|.js`, chacune dans sa
+  transaction, enregistrée dans `schema_migrations` avec l'empreinte SHA-256 du fichier
+  (insensible aux fins de ligne CRLF/LF). Fichier déjà appliqué puis modifié → échec explicite ;
+  noms mal formés et numéros en double → refusés ; verrou consultatif contre deux exécutions
+  simultanées ; version en base inconnue du code (retour en arrière) → avertissement.
+- **Commande inchangée** : `node src/db/migrate.js` (+ `--statut`). Le serveur avertit au
+  démarrage s'il reste des migrations en attente (pas d'application automatique).
+- **Conséquence** : les valeurs par défaut de `utils/*Defaut.js` ne sont plus rattrapées à chaque
+  déploiement ; pour les entreprises existantes, il faut une migration `.js`.
+- Tests : `migrations.test.js` (10). Vérifié sur la base de développement (socle enregistré en
+  0000, relance sans effet) et depuis le conteneur Linux (même empreinte qu'enregistrée sous
+  Windows).
+
+---
+
 ### Lot 2b de l'audit : session par cookie HttpOnly — 2026-11-18
 
 Suite du lot 2a (S4). Avant : le JWT, valable 7 jours, était stocké en `localStorage` et lisible

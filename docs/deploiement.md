@@ -153,9 +153,18 @@ tables n'existent pas encore tant que ceci n'a pas été lancé :
 docker compose exec backend node src/db/migrate.js
 ```
 
-`migrate.js` est idempotent (`CREATE TABLE IF NOT EXISTS`, `ADD COLUMN IF NOT
-EXISTS`) — relançable sans risque à chaque déploiement, y compris ceux
-suivants qui ajoutent des colonnes.
+Depuis le lot 3a (2026-11-19), les migrations sont **versionnées** : le socle
+(`src/db/socle.js`, version 0000) puis chaque fichier de `src/db/migrations/`
+est appliqué **une seule fois** et enregistré dans la table `schema_migrations`.
+Relancer la commande est sans risque : elle n'applique que ce qui manque.
+`node src/db/migrate.js --statut` liste ce qui reste à appliquer sans rien
+modifier. Au démarrage, le backend écrit un avertissement `⚠️ Migrations en
+attente` dans ses journaux s'il en reste.
+
+Une migration qui échoue est annulée en entier (transaction) et bloque les
+suivantes : corriger, puis relancer. Si la commande refuse parce qu'une
+migration « a été modifiée après avoir été appliquée », ne pas forcer : le code
+déployé ne correspond pas à l'historique de la base.
 
 ## 6. Vérifications post-déploiement
 
@@ -215,7 +224,7 @@ docker compose exec db sh -c '
 cd YEELEN-AgriConnect
 git pull
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
-docker compose exec backend node src/db/migrate.js   # si le déploiement inclut une migration de schéma
+docker compose exec backend node src/db/migrate.js   # à chaque déploiement : n'applique que ce qui manque
 ```
 
 `nginx.conf` a un `Cache-Control` correct sur `index.html` (`no-cache`) et sur
@@ -234,9 +243,10 @@ git checkout <commit-ou-tag>
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
 
-**Attention aux migrations de schéma** : `migrate.js` n'a pas de mécanisme de
-`down`/rollback (voir `CLAUDE.md`, section Database migrations — c'est un
-script cumulatif, pas un système de migrations versionnées réversibles). Si le
+**Attention aux migrations de schéma** : les migrations n'ont pas de mécanisme
+de `down`/rollback (voir `server/src/db/migrations/README.md`). Après un retour
+à un code plus ancien, `migrate.js` signale les versions présentes en base mais
+inconnues du code, sans bloquer. Si le
 déploiement à annuler a ajouté des colonnes/tables, revenir en arrière côté
 code ne les supprime pas côté base — dans la grande majorité des cas c'est
 inoffensif (colonnes en plus non utilisées par l'ancien code), mais si le

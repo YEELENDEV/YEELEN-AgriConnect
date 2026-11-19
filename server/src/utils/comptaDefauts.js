@@ -1,5 +1,5 @@
 // Référentiels comptables par défaut créés pour chaque entreprise (à l'inscription via
-// routes/auth.js, et rétroactivement par db/migrate.js). Étape 2 de l'alignement Comptabilité.
+// routes/auth.js, et rétroactivement par db/socle.js). Étape 2 de l'alignement Comptabilité.
 //
 // Le plan de comptes suit le chart générique d'un ERP de référence (codes 1xxxxx/2xxxxx/
 // 4xxxxx/5xxxxx, pas un PCG national) — l'appli vise toutes zones, on ne code pas un plan
@@ -25,7 +25,7 @@ export const COMPTES_DEFAUT = [
 export const JOURNAUX_DEFAUT = [
   // FAC et non INV depuis le 2026-09-11 : le code du journal devient le préfixe du numéro de
   // pièce (FAC/2026/0001, RFAC/2026/0001 pour un avoir), et l'application est francophone.
-  // Les entreprises déjà créées sont renommées par migrate.js, compteur reporté — voir
+  // Les entreprises déjà créées sont renommées par socle.js, compteur reporté — voir
   // renommerJournalVenteVersFac.
   { name: 'Factures clients',    code: 'FAC',  type: 'sale',     sequence: 5,  refund_sequence: true,  defaultAccountCode: '400000' },
   { name: 'Factures fournisseurs', code: 'BILL', type: 'purchase', sequence: 6, refund_sequence: true, defaultAccountCode: '500000' },

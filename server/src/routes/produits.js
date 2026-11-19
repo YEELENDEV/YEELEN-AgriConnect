@@ -1,13 +1,13 @@
 // Produits (Cultures + Poulailler unifiés, 2026-08-18) — remplace les anciens
 // /api/cultures/stocks* et /api/poulailler/stocks*, désormais fusionnés dans une seule table
-// produits avec un espace d'ids partagé (voir server/src/db/migrate.js:mergeStocksIntoProduits
+// produits avec un espace d'ids partagé (voir server/src/db/socle.js:mergeStocksIntoProduits
 // pour la migration des données existantes). categorie est jointe depuis produit_categories
 // (texte dénormalisé en lecture) pour que les consommateurs existants qui filtrent sur le
 // libellé littéral ('Aliment', 'Œufs'...) continuent de fonctionner sans changement.
 //
 // Étape A « élargissement stock » (2026-09-01) : fiche intrant enrichie par type
 // (type_intrant + champs semence / engrais NPK / phytosanitaire réglementaire FR). Modèle de
-// champs adapté de LiteFarm ; voir migrate.js pour le détail.
+// champs adapté de LiteFarm ; voir socle.js pour le détail.
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';
 import { pool } from '../db.js';
@@ -91,7 +91,7 @@ function champsIntrant(body) {
 // posture que resolveParentId/resolveListePrixId ailleurs dans le projet). Quand un uniteId
 // valide est fourni, .unite (TEXT) est resynchronisé depuis le symbole/nom de l'unité —
 // colonne pont dénormalisée pour les lecteurs existants, voir le commentaire dans
-// server/src/db/migrate.js. Sans uniteId, .unite reste le texte libre soumis tel quel.
+// server/src/db/socle.js. Sans uniteId, .unite reste le texte libre soumis tel quel.
 async function resolveUnite(entrepriseId, uniteId, uniteTexteLibre) {
   if (uniteId == null || uniteId === '') return { uniteId: null, unite: uniteTexteLibre };
   const { rows } = await pool.query(
@@ -107,7 +107,7 @@ async function resolveUnite(entrepriseId, uniteId, uniteTexteLibre) {
 // création silencieuse d'un gabarit à variante unique portant le même nom/catégorie. Un
 // product.product n'existe jamais sans product.template, même quand l'utilisateur passe par le
 // formulaire "Ajout rapide" de StocksTab sans jamais gérer de variantes (voir aussi
-// migrate.js:backfillProduitsTemplates, même principe appliqué rétroactivement).
+// socle.js:backfillProduitsTemplates, même principe appliqué rétroactivement).
 async function resolveTemplateId(entrepriseId, module, nom, categorieId, templateId) {
   if (templateId) {
     const owned = await pool.query(

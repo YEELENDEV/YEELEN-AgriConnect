@@ -6,7 +6,7 @@
 // Étape 3 alignement Odoo produit/stock (2026-09-04) : chaque ajustement crée aussi une ligne
 // stock_moves (state confirme/fait/annule) et met à jour le stock_quants de l'emplacement
 // interne de l'entreprise (quantite pour un mouvement physique, quantite_reservee pour une
-// réservation de vente) — voir migrate.js pour le schéma. produits.quantite (colonne pont)
+// réservation de vente) — voir socle.js pour le schéma. produits.quantite (colonne pont)
 // continue de représenter le DISPONIBLE (quantite - quantite_reservee côté quant interne), donc
 // son comportement visible pour les lecteurs existants (StocksTab, alertes, etc.) est identique
 // à avant cette étape : un devis signé décrémentait déjà produits.quantite immédiatement, ce
@@ -127,7 +127,7 @@ async function creerMove({ entrepriseId, userId, produitId, quantite, sourceId, 
 
 // Un seul quant réel suivi par produit : celui de l'emplacement interne. Les emplacements
 // client/fournisseur/perte ne servent qu'à qualifier la source/destination du mouvement dans
-// le journal stock_moves (traçabilité), jamais de quant à leur niveau — voir migrate.js.
+// le journal stock_moves (traçabilité), jamais de quant à leur niveau — voir socle.js.
 //   reception    : achat reçu.                quantite    += n  (fournisseur → interne, fait)
 //   retour_achat : réception d'achat annulée. quantite    += n  (interne → fournisseur, annule)
 //   reservation  : devis signé.               reservee    += n  (interne → client, confirme)

@@ -1,4 +1,4 @@
-// Multi-devise réel, étape 1 : taux de change quotidiens, pivot USD (voir migrate.js pour
+// Multi-devise réel, étape 1 : taux de change quotidiens, pivot USD (voir socle.js pour
 // le schéma de currency_rates). API gratuite, sans clé — voir le plan/journal pour la
 // vérification en direct (couverture XOF/XAF confirmée, mise à jour une fois par jour).
 // Attribution requise par les conditions d'utilisation : à afficher dès qu'une UI montre un

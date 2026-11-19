@@ -231,7 +231,7 @@ router.post('/:id/regenerer-variantes', authRequired, async (req, res) => {
 
 // Supprime le gabarit ET ses variantes (produits.template_id est ON DELETE CASCADE) — même
 // posture que DELETE /api/produits/:id, qui ne vérifie déjà aucune référence avant suppression
-// (stock_id sur achats_lignes/devis_lignes n'a pas de contrainte FK, voir migrate.js).
+// (stock_id sur achats_lignes/devis_lignes n'a pas de contrainte FK, voir socle.js).
 router.delete('/:id', authRequired, async (req, res) => {
   try {
     const result = await pool.query(

@@ -1,12 +1,12 @@
 // Contacts (clients + fournisseurs unifiés, 2026-08-18) — remplace les anciens
 // /api/business/clients* et /api/business/fournisseurs*, fusionnés dans une seule table
 // contacts avec deux booléens indépendants est_client/est_fournisseur (un même contact
-// réel peut être les deux à la fois, voir server/src/db/migrate.js:mergeClientsFournisseursIntoContacts
+// réel peut être les deux à la fois, voir server/src/db/socle.js:mergeClientsFournisseursIntoContacts
 // pour la migration des données existantes, y compris le rapprochement automatique des
 // fiches qui représentaient déjà la même entité des deux côtés).
 //
 // Architecture façon fiche contact d'un ERP de référence (2026-08-27) : is_company/photo/fonction/notes,
-// rattachement société mère (parent_id) + sous-contacts, tags colorés — voir migrate.js
+// rattachement société mère (parent_id) + sous-contacts, tags colorés — voir socle.js
 // pour le détail du schéma et project_erp_contact_architecture pour le contexte complet.
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';

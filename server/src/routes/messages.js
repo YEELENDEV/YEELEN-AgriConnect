@@ -1,5 +1,5 @@
 // Fil de messages en texte libre attaché à une ressource — équivalent minimal du
-// "Envoyer un message"/"Log note" du chatter d'un ERP de référence. Voir server/src/db/migrate.js pour le
+// "Envoyer un message"/"Log note" du chatter d'un ERP de référence. Voir server/src/db/socle.js pour le
 // schéma et pourquoi c'est distinct de journal_modifications/activites.
 import express from 'express';
 import { authRequired } from '../middleware/auth.js';
